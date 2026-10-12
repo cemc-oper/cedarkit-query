@@ -366,6 +366,10 @@
       "type": "string",
       "minLength": 1
     },
+    "details": {
+      "type": "object",
+      "description": "Action-specific JSON details, such as normalized plans or native field metadata."
+    },
     "error": {
       "$ref": "urn:cedarkit:query:error:v1"
     }

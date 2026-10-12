@@ -140,3 +140,13 @@ def test_request_dispatch_does_not_hide_unknown_requests_key():
     with pytest.raises(QueryError) as caught:
         load_request(request)
     assert caught.value.code == "invalid_query"
+
+
+def test_response_details_are_json_values_and_optional():
+    value = {"api_version": "cedarkit.response/v1", "action": "plan", "ok": True,
+             "status": "planned", "details": {"expanded_requests": [{"action": "plan"}]}}
+    assert load_value(value, "response").to_dict() == value
+    value["details"]["expanded_requests"] = [object()]
+    with pytest.raises(QueryError) as caught:
+        load_value(value, "response")
+    assert caught.value.path == "/details/expanded_requests/0"
