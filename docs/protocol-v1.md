@@ -1,6 +1,6 @@
 # CedarKit grid query protocol v1
 
-Status: versioned value model, JSON Schema, pure normalization, expansion, identity, and restricted text parsing are implemented in `cedarkit-query` 0.1.0. See [normalization-v1.md](normalization-v1.md) and [text-v1.md](text-v1.md) for T05/T06 semantics. Dataset/source execution is a later task. Loading a valid value does not confirm a dataset or resource exists.
+Status: versioned value model, JSON Schema, pure normalization, expansion, identity, and restricted text parsing are implemented in `cedarkit-query` 0.1.0. See the [runnable guide](using-v1.md), [normalization-v1.md](normalization-v1.md), and [text-v1.md](text-v1.md). Dataset/source binding and supported execution are provided by reki, not this value package. Loading a valid value does not confirm a dataset or resource exists.
 
 ## Versions and resources
 
