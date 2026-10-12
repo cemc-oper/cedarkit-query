@@ -27,6 +27,7 @@ from .normalize import (
     resource_identity,
     transform_identity,
 )
+from .text import parse_text_request, parse_text_requests
 
 __all__ = [
     "Binding", "DataReference", "ErrorValue", "Query", "QueryError", "Request",
@@ -34,4 +35,5 @@ __all__ = [
     "load_request", "load_value", "validate_value", "AliasSnapshot", "ExpandedRequest",
     "NormalizedRequest", "binding_identity", "expand_request", "normalize_request",
     "query_identity", "resource_identity", "transform_identity",
+    "parse_text_request", "parse_text_requests",
 ]

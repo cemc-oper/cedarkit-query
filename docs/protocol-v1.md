@@ -1,6 +1,6 @@
 # CedarKit grid query protocol v1
 
-Status: versioned value model, JSON Schema, pure normalization, expansion and identity are implemented in `cedarkit-query` 0.1.0. See [normalization-v1.md](normalization-v1.md) for T05 semantics. Dataset/source execution and text requests are later tasks. Loading a valid value does not confirm a dataset or resource exists.
+Status: versioned value model, JSON Schema, pure normalization, expansion, identity, and restricted text parsing are implemented in `cedarkit-query` 0.1.0. See [normalization-v1.md](normalization-v1.md) and [text-v1.md](text-v1.md) for T05/T06 semantics. Dataset/source execution is a later task. Loading a valid value does not confirm a dataset or resource exists.
 
 ## Versions and resources
 
@@ -50,4 +50,4 @@ yaml_text = dump_value(request, format="yaml")
 
 `load_request` accepts a Python mapping, JSON text, or safe YAML text and returns an immutable Request or RequestList. `load_value(value, kind)` loads any root object. `validate_value(value, kind)` returns a fresh plain Python copy, `get_schema(kind)` returns a fresh schema copy, and `dump_value(model, format="json"|"yaml")` serializes a validated model. Errors use `QueryError.code`, `.path`, `.message`, and `.to_dict()`. The language-neutral fixtures in `tests/vectors/v1/` provide positive and negative examples. The JSON Schema files travel in both wheel and source distribution.
 
-The exchange version is independent of the package version, catalog snapshot, vocabulary snapshot, binding ID, and query ID. T05 canonical values, expansion and identity are implemented and documented separately. T06 adds the limited text syntax; it is not implemented by this version of the package.
+The exchange version is independent of the package version, catalog snapshot, vocabulary snapshot, binding ID, and query ID. T05 canonical values, expansion and identity and T06 limited text syntax are implemented and documented separately.
