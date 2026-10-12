@@ -1,0 +1,403 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:response:v1",
+  "title": "CedarKit response v1",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "cedarkit.response/v1"
+    },
+    "action": {
+      "enum": [
+        "validate",
+        "plan",
+        "list",
+        "locate",
+        "read"
+      ]
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "valid",
+        "planned",
+        "available",
+        "partial",
+        "unknown"
+      ]
+    },
+    "query_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "binding_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:cedarkit:query:data-reference:v1"
+      }
+    },
+    "missing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field_identity": {
+            "type": "object",
+            "properties": {
+              "parameter": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reference_time": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+              },
+              "lead_time": {
+                "type": "string",
+                "pattern": "^P(?:[0-9]+D)?(?:T(?:[0-9]+H)?(?:[0-9]+M)?(?:[0-9]+S)?)?$",
+                "not": {
+                  "enum": [
+                    "P",
+                    "PT"
+                  ]
+                }
+              },
+              "vertical": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "surface",
+                      "isobaric",
+                      "heightAboveGround",
+                      "soilLayer",
+                      "modelLevel"
+                    ]
+                  },
+                  "unit": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "values": {
+                    "oneOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 1
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "start": {
+                            "type": "number"
+                          },
+                          "stop": {
+                            "type": "number"
+                          },
+                          "step": {
+                            "type": "number"
+                          },
+                          "closed": {
+                            "enum": [
+                              "both",
+                              "left",
+                              "right",
+                              "neither"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "start",
+                          "stop",
+                          "step",
+                          "closed"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "bounds": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lower": {
+                          "type": "number"
+                        },
+                        "upper": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "lower",
+                        "upper"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "surface"
+                        }
+                      }
+                    },
+                    "then": {
+                      "not": {
+                        "anyOf": [
+                          {
+                            "required": [
+                              "unit"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "values"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "bounds"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "not": {
+                            "const": "surface"
+                          }
+                        }
+                      }
+                    },
+                    "then": {
+                      "required": [
+                        "unit"
+                      ],
+                      "oneOf": [
+                        {
+                          "required": [
+                            "values"
+                          ],
+                          "not": {
+                            "required": [
+                              "bounds"
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "bounds"
+                          ],
+                          "not": {
+                            "required": [
+                              "values"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "statistic": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "instant",
+                      "accum",
+                      "mean",
+                      "min",
+                      "max"
+                    ]
+                  },
+                  "window": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^P(?:[0-9]+D)?(?:T(?:[0-9]+H)?(?:[0-9]+M)?(?:[0-9]+S)?)?$",
+                        "not": {
+                          "enum": [
+                            "P",
+                            "PT"
+                          ]
+                        }
+                      },
+                      {
+                        "not": {
+                          "pattern": "^P(?:0+D)?(?:T(?:0+H)?(?:0+M)?(?:0+S)?)?$"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "kind": {
+                          "const": "instant"
+                        }
+                      }
+                    },
+                    "then": {
+                      "not": {
+                        "required": [
+                          "window"
+                        ]
+                      }
+                    },
+                    "else": {
+                      "required": [
+                        "window"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "member": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "role": {
+                    "enum": [
+                      "control",
+                      "perturbation"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "role"
+                ],
+                "additionalProperties": false
+              },
+              "native_grid": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "parameter",
+              "reference_time",
+              "lead_time"
+            ],
+            "additionalProperties": false
+          },
+          "code": {
+            "enum": [
+              "not_found",
+              "availability_unknown"
+            ]
+          }
+        },
+        "required": [
+          "field_identity",
+          "code"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "netcdf"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "format",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "catalog_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vocabulary_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "error": {
+      "$ref": "urn:cedarkit:query:error:v1"
+    }
+  },
+  "required": [
+    "api_version",
+    "action",
+    "ok",
+    "status"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ok": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "error"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      }
+    }
+  ]
+}

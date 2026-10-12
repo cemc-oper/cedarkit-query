@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:error:v1",
+  "title": "CedarKit error v1",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "cedarkit.error/v1"
+    },
+    "code": {
+      "enum": [
+        "invalid_query",
+        "invalid_version",
+        "unknown_dataset",
+        "unknown_parameter",
+        "unmapped_parameter",
+        "ambiguous_mapping",
+        "unsupported",
+        "expansion_limit",
+        "not_found",
+        "multiple_matches",
+        "availability_unknown",
+        "permission_denied",
+        "provider_error",
+        "stale_reference"
+      ]
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "api_version",
+    "code",
+    "path",
+    "message",
+    "context"
+  ],
+  "additionalProperties": false
+}

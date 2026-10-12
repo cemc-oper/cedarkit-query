@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:request-list:v1",
+  "title": "CedarKit request-list v1",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "cedarkit.request-list/v1"
+    },
+    "requests": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:cedarkit:query:request:v1"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "api_version",
+    "requests"
+  ],
+  "additionalProperties": false
+}

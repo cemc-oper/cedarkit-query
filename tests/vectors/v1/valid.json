@@ -1,0 +1,157 @@
+[
+  {
+    "name": "minimal-validation-request",
+    "kind": "request",
+    "value": {
+      "api_version": "cedarkit.request/v1",
+      "action": "validate",
+      "query": {"api_version": "cedarkit.query/v1", "domain": "grid", "dataset": "cma_gfs_gmf_cmadaas"}
+    }
+  },
+  {
+    "name": "grid-locate-request",
+    "kind": "request",
+    "value": {
+      "api_version": "cedarkit.request/v1",
+      "action": "locate",
+      "query": {
+        "api_version": "cedarkit.query/v1",
+        "domain": "grid",
+        "dataset": "cma_gfs_gmf_cmadaas",
+        "parameter": "cedarkit.t",
+        "reference_time": "2026-08-30T00:00:00Z",
+        "lead_time": "PT24H",
+        "vertical": {"type": "surface"},
+        "statistic": {"kind": "instant"}
+      },
+      "policy": {"cardinality": "one", "missing": "error", "duplicates": "error"}
+    }
+  },
+  {
+    "name": "request-list",
+    "kind": "request-list",
+    "value": {
+      "api_version": "cedarkit.request-list/v1",
+      "requests": [
+        {"api_version": "cedarkit.request/v1", "action": "validate",
+         "query": {"api_version": "cedarkit.query/v1", "domain": "grid", "dataset": "a"}},
+        {"api_version": "cedarkit.request/v1", "action": "validate",
+         "query": {"api_version": "cedarkit.query/v1", "domain": "grid", "dataset": "b"}}
+      ]
+    }
+  },
+  {
+    "name": "query-with-ranges-and-alias",
+    "kind": "query",
+    "value": {
+      "api_version": "cedarkit.query/v1",
+      "domain": "grid",
+      "dataset": {"namespace": "catalog", "name": "gfs"},
+      "parameter": [{"namespace": "cmadaas", "name": "TEM"}, "cedarkit.t"],
+      "reference_time": {"start": "2026-08-30T00:00:00Z", "stop": "2026-08-31T00:00:00Z", "step": "PT12H", "closed": "both"},
+      "lead_time": ["PT0S", "PT24H"],
+      "vertical": {"type": "isobaric", "unit": "hPa", "values": [500, 850]},
+      "statistic": {"kind": "accum", "window": "PT24H"},
+      "member": {"id": "0", "role": "control"},
+      "coverage": {"crs": "EPSG:4326", "bbox": [70, 10, 140, 60], "relation": "intersects"}
+    }
+  },
+  {
+    "name": "local-binding",
+    "kind": "binding",
+    "value": {
+      "api_version": "cedarkit.binding/v1",
+      "dataset": "cma_gfs_gmf_local",
+      "kind": "local",
+      "source_id": "fixture",
+      "catalog_version": "catalog-1",
+      "locator": {"resolver": "file-pattern", "root": "/data/gfs", "pattern": "{reference_time}.grib2"}
+    }
+  },
+  {
+    "name": "cmadaas-binding",
+    "kind": "binding",
+    "value": {
+      "api_version": "cedarkit.binding/v1",
+      "dataset": "cma_gfs_gmf_cmadaas",
+      "kind": "cmadaas",
+      "source_id": "cmadaas-a",
+      "catalog_version": "catalog-1",
+      "data_code": "NAFP_FOR_FTM_GRAPES_GFS_25KM_GLB",
+      "request_kind": "model_grid"
+    }
+  },
+  {
+    "name": "ordered-transform",
+    "kind": "transform",
+    "value": {
+      "api_version": "cedarkit.transform/v1",
+      "operations": [
+        {"kind": "crop", "bbox": [70, 10, 140, 60]},
+        {"kind": "unit", "target": "K"}
+      ]
+    }
+  },
+  {
+    "name": "remote-data-reference",
+    "kind": "data-reference",
+    "value": {
+      "api_version": "cedarkit.data-reference/v1",
+      "dataset": "cma_gfs_gmf_cmadaas",
+      "field_identity": {
+        "parameter": "cedarkit.t",
+        "reference_time": "2026-08-30T00:00:00Z",
+        "lead_time": "PT24H",
+        "vertical": {"type": "surface"},
+        "statistic": {"kind": "instant"}
+      },
+      "binding_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "resource": {"kind": "cmadaas", "locator": "NAFP_FOR_FTM_GRAPES_GFS_25KM_GLB"},
+      "verification": "remote_unverified"
+    }
+  },
+  {
+    "name": "local-data-reference",
+    "kind": "data-reference",
+    "value": {
+      "api_version": "cedarkit.data-reference/v1",
+      "dataset": "cma_gfs_gmf_local",
+      "field_identity": {"parameter": "cedarkit.t", "reference_time": "2026-08-30T00:00:00Z", "lead_time": "PT24H"},
+      "binding_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "resource": {"kind": "local", "locator": "/data/gfs/2026083000.grib2",
+                   "fingerprint": {"size": 1234, "mtime_ns": 42, "device": 1, "inode": 2}},
+      "verification": "field_confirmed",
+      "field_locator": {"frame_index": 0, "field_index": 1}
+    }
+  },
+  {
+    "name": "unknown-locate-response",
+    "kind": "response",
+    "value": {
+      "api_version": "cedarkit.response/v1",
+      "action": "locate",
+      "ok": true,
+      "status": "unknown",
+      "query_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "references": []
+    }
+  },
+  {
+    "name": "error-response",
+    "kind": "response",
+    "value": {
+      "api_version": "cedarkit.response/v1",
+      "action": "validate",
+      "ok": false,
+      "status": "unknown",
+      "error": {"api_version": "cedarkit.error/v1", "code": "invalid_query", "path": "/query/reference_time",
+                "message": "reference_time requires a timezone", "context": {}}
+    }
+  },
+  {
+    "name": "error-value",
+    "kind": "error",
+    "value": {"api_version": "cedarkit.error/v1", "code": "unsupported", "path": "/query/vertical",
+              "message": "vertical type is unavailable", "context": {}}
+  }
+]

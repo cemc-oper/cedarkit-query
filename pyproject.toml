@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cedarkit-query"
+version = "0.1.0"
+description = "Language-neutral CedarKit query value models and schemas"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = ["jsonschema>=4.20", "PyYAML>=6"]
+
+[dependency-groups]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cedarkit_query*"]
+
+[tool.setuptools.package-data]
+cedarkit_query = ["schemas/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
