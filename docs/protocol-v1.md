@@ -1,6 +1,6 @@
 # CedarKit grid query protocol v1
 
-Status: versioned value model and JSON Schema implemented in `cedarkit-query` 0.1.0. Execution, selector normalization, stable query identity, catalog resolution, source adapters, and text requests are later tasks. This document describes the exchange values; loading a valid value does not confirm a dataset or resource exists.
+Status: versioned value model, JSON Schema, pure normalization, expansion and identity are implemented in `cedarkit-query` 0.1.0. See [normalization-v1.md](normalization-v1.md) for T05 semantics. Dataset/source execution and text requests are later tasks. Loading a valid value does not confirm a dataset or resource exists.
 
 ## Versions and resources
 
@@ -31,7 +31,7 @@ Unknown fields, wrong versions, explicit `null`, empty strings (except the root 
 
 `Response` has `action`, boolean `ok`, and status `valid/planned/available/partial/unknown`. It may contain query/binding IDs, references, missing items, artifact, and catalog/vocabulary versions. A failed response contains an Error; a successful one cannot. `Error` contains `code`, JSON Pointer `path`, nonempty `message`, and object `context`. Error codes are `invalid_query`, `invalid_version`, `unknown_dataset`, `unknown_parameter`, `unmapped_parameter`, `ambiguous_mapping`, `unsupported`, `expansion_limit`, `not_found`, `multiple_matches`, `availability_unknown`, `permission_denied`, `provider_error`, and `stale_reference`.
 
-The packaged schemas enforce JSON value shape, version, enum, required/forbidden fields, format, and many conditional requirements. They do not access catalogs or files. Cross-value checks such as time arithmetic, alias resolution, unit conversion, longitude ordering, range expansion, and query ID calculation belong to normalization and execution tasks. A syntactically valid `read` request is not proof that a provider can execute it.
+The packaged schemas enforce JSON value shape, version, enum, required/forbidden fields, format, and many conditional requirements. T05 normalization checks time arithmetic, alias resolution against supplied snapshots, unit conversion, longitude ordering, range expansion, and query ID. Neither layer accesses catalogs or files. A syntactically valid `read` request is not proof that a provider can execute it.
 
 ## Python entry points
 
@@ -50,4 +50,4 @@ yaml_text = dump_value(request, format="yaml")
 
 `load_request` accepts a Python mapping, JSON text, or safe YAML text and returns an immutable Request or RequestList. `load_value(value, kind)` loads any root object. `validate_value(value, kind)` returns a fresh plain Python copy, `get_schema(kind)` returns a fresh schema copy, and `dump_value(model, format="json"|"yaml")` serializes a validated model. Errors use `QueryError.code`, `.path`, `.message`, and `.to_dict()`. The language-neutral fixtures in `tests/vectors/v1/` provide positive and negative examples. The JSON Schema files travel in both wheel and source distribution.
 
-The exchange version is independent of the package version, catalog snapshot, vocabulary snapshot, binding ID, and future query ID. T05 defines canonical values, expansion and identity; T06 adds the limited text syntax. Neither is implemented by this version of the package.
+The exchange version is independent of the package version, catalog snapshot, vocabulary snapshot, binding ID, and query ID. T05 canonical values, expansion and identity are implemented and documented separately. T06 adds the limited text syntax; it is not implemented by this version of the package.
