@@ -23,6 +23,7 @@ from .normalize import (
     constrain_query,
     expand_queries,
     intersect_queries,
+    intersect_scopes,
     normalize_query,
     query_identity,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "normalize_query",
     "expand_queries",
     "intersect_queries",
+    "intersect_scopes",
     "constrain_query",
     "combine_queries",
     "query_identity",

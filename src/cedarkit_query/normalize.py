@@ -549,6 +549,22 @@ def _intersect(a, b, *, native=False):
     return result
 
 
+def intersect_scopes(left, right):
+    """Conjoin configuration bounds without enumerating a product domain.
+
+    Scopes constrain later selections; they are not executable requests. Time
+    tuple legality and max_expansion still apply when effective queries are
+    prepared/expanded. A partial vertical bound can gain its type from the other
+    scope, using the same intersection semantics as Query selection.
+    """
+    from .model import Query
+
+    a = _normalize(Query(left).to_dict(), allow_unbound=True)
+    b = _normalize(Query(right).to_dict(), allow_unbound=True)
+    result = _intersect(a, b)
+    return None if result is None else Query(result)
+
+
 def intersect_queries(left, right, *, max_expansion=DEFAULT_MAX_EXPANSION):
     """Return a conjunction, or None for two legal disjoint selections."""
     a, b = normalize_query(left).to_dict(), normalize_query(right).to_dict()

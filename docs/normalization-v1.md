@@ -78,3 +78,10 @@ for **every new input** with `prepare_queries` before combining steps, including
 a step after an empty selection. It must preserve caller-specific origins when
 wrapping pure-helper diagnostics. No function here runs first/one/all,
 completeness checks, output assembly, or backend translation.
+
+`intersect_scopes(left, right)` combines configuration bounds without enumerating
+an entire product domain. It uses the shared intersection semantics, permits a
+partial vertical bound to gain its type from the other bound, and returns None
+for a known disjoint conjunction. I04 uses it for catalog/context construction;
+it does not execute a selection or verify every temporal tuple. Effective Query
+preparation and expansion retain their normal legality and max_expansion checks.
