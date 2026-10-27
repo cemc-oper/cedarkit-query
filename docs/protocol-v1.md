@@ -1,53 +1,156 @@
-# CedarKit grid query protocol v1
+# Stage 1.1 protocol v1
 
-Status: versioned value model, JSON Schema, pure normalization, expansion, identity, and restricted text parsing are implemented in `cedarkit-query` 0.1.0. See the [runnable guide](using-v1.md), [normalization-v1.md](normalization-v1.md), and [text-v1.md](text-v1.md). Dataset/source binding and supported execution are provided by reki, not this value package. Loading a valid value does not confirm a dataset or resource exists.
+This is the current source contract. The old pre-release v1 schema and parser
+are replaced; there is no runtime detection, conversion, deprecated alias, or
+second execution format.
 
-## Versions and resources
+## Query
 
-All objects are JSON compatible. The eight independently loadable roots have these `api_version` strings and packaged JSON Schema Draft 2020-12 resources:
+`Query(mapping)` and `Query(**conditions)` accept the same fields. Mixing the
+two forms is an error. Query and its nested containers are read-only; its
+`to_dict()` copies data. The stored value is the declaration; canonical values
+are obtained explicitly with `normalize_query` or the resource-aware
+`prepare_queries`.
 
-| Object | `api_version` | Schema `$id` | Resource |
-|---|---|---|---|
-| Request | `cedarkit.request/v1` | `urn:cedarkit:query:request:v1` | `schemas/request-v1.schema.json` |
-| RequestList | `cedarkit.request-list/v1` | `urn:cedarkit:query:request-list:v1` | `schemas/request-list-v1.schema.json` |
-| Query | `cedarkit.query/v1` | `urn:cedarkit:query:query:v1` | `schemas/query-v1.schema.json` |
-| Binding | `cedarkit.binding/v1` | `urn:cedarkit:query:binding:v1` | `schemas/binding-v1.schema.json` |
-| Transform | `cedarkit.transform/v1` | `urn:cedarkit:query:transform:v1` | `schemas/transform-v1.schema.json` |
-| DataReference | `cedarkit.data-reference/v1` | `urn:cedarkit:query:data-reference:v1` | `schemas/data-reference-v1.schema.json` |
-| Response | `cedarkit.response/v1` | `urn:cedarkit:query:response:v1` | `schemas/response-v1.schema.json` |
-| Error | `cedarkit.error/v1` | `urn:cedarkit:query:error:v1` | `schemas/error-v1.schema.json` |
+| Field | Shape/meaning |
+|---|---|
+| `parameter` | Nonblank name, registered alias, stable ID, or nonempty list; never a native triple |
+| `level_type` | `pressure`, `height_above_ground`, `height_above_sea`, `depth_below_land`, `model_level`, or named `surface`, `atmosphere_top`, `entire_atmosphere`, `mean_sea_level` |
+| `level` | Number, nonempty list, or numeric range |
+| `level_unit` | Shared vertical input unit; pressure defaults hPa, heights/depths m; no unit for indices or named levels |
+| `layer` | One complete `{bottom, top}` object or a nonempty list of complete pairs |
+| `time`, `valid_time` | Explicit-timezone ISO timestamps, lists, or ranges |
+| `step` | Nonnegative fixed ISO duration, list, or range |
+| `member` | Strict nonnegative integer, list, or range |
+| `member_role` | `control` / `perturbation`, or nonempty list |
+| `native` | `{grib: {key: scalar/list/range, ...}}`, additional constraints with no invented business ID |
 
-Unknown fields, wrong versions, explicit `null`, empty strings (except the root JSON Pointer in Error `path`), empty selector arrays, non-finite numbers, duplicate JSON/YAML keys, and non-JSON Python values are rejected. YAML uses SafeLoader and rejects arbitrary object tags. An omitted field means no restriction; an unknown output value is omitted and accompanied by status. The protocol carries no runtime handles, pandas/xarray objects, credentials, or reader instances. `domain` is exactly `grid`; the observation draft is a separate version family.
+Range syntax is `{range: {start, end, every?}}`. Bounds are inclusive and
+ascending; `every` must be positive. A non-aligned end is not forcibly added.
+Without `every`, the range filters existing values and never invents values.
+Level and layer are mutually exclusive. Layer endpoints are numbers inheriting
+the shared type/unit, or `{type, value?, unit?}` objects. Numeric endpoints need
+a type from the declaration or effective definition. Named endpoints carry
+neither value nor unit. Outer type and unit are constraints, not overrides;
+convertible but different units cannot contradict an explicit shared unit.
 
-## Values
+The vocabulary describes canonical conditions, not a claim that each backend
+supports every type. Source/native-key capability and product-specific model
+level definitions remain I04/I06 responsibilities. Parameter aliases and IDs
+are resolved only from explicitly supplied, validated definitions; names are
+case-sensitive. Partial conditions and `{}` do not select a default parameter,
+latest cycle, zero lead, or control member.
 
-`Query` requires `api_version`, `domain:"grid"`, and `dataset`. Dataset is a stable catalog ID or `{namespace,name}` alias. Optional `parameter` is a stable ID, an alias, or a nonempty list of them. Optional `reference_time` and `lead_time` are exact values, nonempty lists, or `{start,stop,step,closed}` ranges; `closed` is `both`, `left`, `right`, or `neither`. Times require a timezone; durations allow days, hours, minutes, and seconds. Optional `valid_time` is a redundant check of one reference time plus one lead time. `vertical` has `type` and, except for `surface`, `unit` with exactly one of `values` or `bounds`. `statistic` is `instant` without a window or `accum/mean/min/max` with a positive window. `member` has `id` and `role` (`control` or `perturbation`). `native_grid` has `id`. `coverage` uses `EPSG:4326`, `[west,south,east,north]`, and `relation:"intersects"`.
+## Request, source, and paths
 
-`Request` requires `action` and `query`. Actions are `validate`, `plan`, `list`, `locate`, and `read`; `plan/locate/read` require parameter, reference time, and lead time. Optional `policy` contains `cardinality` (`one`, `zero_or_one`, `all`), `missing` (`error`, `partial`), and `duplicates:"error"`. `zero_or_one` requires `missing:"partial"`. Optional `transforms` is a Transform object; `options.max_expansion` is 1–4096, and `options.output` is `{format:"netcdf",path}` for `read` only. An omitted policy means cardinality one, missing error, duplicates error. `RequestList` holds a nonempty ordered array of independent Request objects; items never inherit fields from one another.
+Required Request fields are `api_version: cedarkit.request/v1`, `source`, and
+nonempty `queries`. Optional `context` is a mapping or a context-file path;
+optional `completeness` is `available` or `required`. Omission remains omission
+in serialization and appears as `None` at the Python completeness property.
+No action, rename, client, arbitrary overrides, top-level max_expansion, or
+single `query` shorthand is accepted.
 
-`Binding` connects one dataset to either `kind:"local"` with a `file-pattern` or `reki-local` locator, or `kind:"cmadaas"` with `data_code` and `request_kind:"model_grid"`. It requires `source_id` and `catalog_version`; `origin` is optional. Binding contains deployment location, not credentials. `Transform.operations` is an ordered array, possibly empty, of `{kind:"crop",bbox}` or `{kind:"unit",target}`. `crop` uses the query's EPSG:4326 bbox convention. Unimplemented operations must later fail as `unsupported`; they are never silently skipped.
+- file source: `kind: file`, optional dataset, and either literal `path` (one
+  file or a nonempty ordered file list), or `directory` plus `glob` (string or
+  nonempty pattern list). Patterns do not occur in `path` discovery semantics.
+- local source: `kind: local`, `dataset`, `root`.
+- service source: `kind: cmadaas`, `dataset`, optional connection `config` path.
+  Without config a later executor must receive an external client. Connection
+  validation and config/client exclusivity happen at source construction, not
+  during declaration loading. Credentials and clients are never fields here.
 
-`DataReference` identifies one expanded field with `dataset`, `field_identity`, `binding_id`, `resource`, and `verification`. `field_identity` requires one parameter, reference time, and lead time, and may contain vertical, statistic, member, or native grid. A local resource has a locator and fingerprint `{size,mtime_ns,device,inode}` with optional SHA256. A CMADaaS resource has a locator and optional version. `field_locator` accepts a nonempty subset of nonnegative `frame_index`, `field_index`, and `offset`, and is present only for `verification:"field_confirmed"`. Local resources can be `path_exists` or `field_confirmed`; remote resources are `remote_unverified`. An offset or index is meaningful only under its resource fingerprint. Resource changes require relocation or `stale_reference` during execution.
+`Request.load` bases relative paths on the request file. `from_dict` bases them
+on explicit `base_dir`, or the construction-time cwd. `to_dict`/`dump` use
+absolute paths, preserving targets when exported elsewhere. Path normalization
+is lexical and does not resolve symlinks, discover files, or check existence.
+Patterns and business identifiers are unchanged. A referenced context stays a
+reference. The I04 loader can parse that context with
+`load_value(text, "context", base_dir=context_path.parent)`; its resource paths
+then use the context document's own base, not the request file or later cwd.
 
-`Response` has `action`, boolean `ok`, and status `valid/planned/available/partial/unknown`. It may contain query/binding IDs, references, missing items, artifact, catalog/vocabulary versions, and an optional JSON object `details` for action-specific output such as normalized plans, per-item availability, or native field metadata. `details` has no runtime objects or credentials; callers should interpret its keys in the context of the producing command. A failed response contains an Error; a successful one cannot. `Error` contains `code`, JSON Pointer `path`, nonempty `message`, and object `context`. Error codes are `invalid_query`, `invalid_version`, `unknown_dataset`, `unknown_parameter`, `unmapped_parameter`, `ambiguous_mapping`, `unsupported`, `expansion_limit`, `not_found`, `multiple_matches`, `availability_unknown`, `permission_denied`, `provider_error`, and `stale_reference`.
+Context accepts only `scope`, `parameter_registry`, `catalog`, `mappings`,
+`member_roles`, and `execution`. Scope is another Query constraint. Resource
+references require exactly one of `path` and `builtin`, plus optional exact
+string `version` and 64-lowercase-hex `sha256`. Only local resource paths are
+accepted. Mapping references are keyed by `grib2` / `cmadaas`. Execution accepts
+only completeness and positive-integer max_expansion. Models do not insert
+implicit defaults; the default expansion limit constant is 10000. Member-role
+keys are canonical nonnegative integer strings.
 
-The packaged schemas enforce JSON value shape, version, enum, required/forbidden fields, format, and many conditional requirements. T05 normalization checks time arithmetic, alias resolution against supplied snapshots, unit conversion, longitude ordering, range expansion, and query ID. Neither layer accesses catalogs or files. A syntactically valid `read` request is not proof that a provider can execute it.
+## Errors
 
-## Python entry points
+`QueryError` is a ValueError. `CompletenessError` subclasses QueryError;
+`SourceError` is an independent RuntimeError. All serialize to
+`api_version`, `code`, JSON-Pointer `path`, `message`, and deeply read-only
+`context`. Copies returned by `to_dict()` are independent. Root path is `""`;
+source record positions and resource documents belong in context, not invented
+response/output input paths. Callers must supply necessary, safe diagnostics,
+not raw credentials, signed URLs, responses, arrays, tracebacks, or clients.
+The package does not catch and reclassify arbitrary backend exceptions.
 
-```python
-from cedarkit_query import QueryError, dump_value, load_request
+Query codes are invalid_request, unsupported_version, invalid_config,
+invalid_query, constraint_conflict, unsupported, expansion_limit_exceeded,
+no_match, multiple_matches, duplicate_field, incompatible_grid,
+multiple_variables, missing_fields, completeness_undetermined. The final two
+require CompletenessError and a report with the corresponding missing/unchecked
+status; ordinary QueryError cannot use them without a report.
 
-request = load_request({
-    "api_version": "cedarkit.request/v1",
-    "action": "validate",
-    "query": {"api_version": "cedarkit.query/v1", "domain": "grid", "dataset": "example.grid"},
-})
-assert request.query.dataset == "example.grid"
-json_text = dump_value(request)
-yaml_text = dump_value(request, format="yaml")
-```
+Source codes are resource_not_found, permission_denied, authentication_failed,
+timeout, decode_failed, io_error, service_error,
+metadata_interpretation_failed, incomplete_response. Metadata interpretation
+requires one of missing_native_metadata, unmapped_native_value,
+invalid_vertical_metadata, inconsistent_native_metadata,
+fixed_definition_mismatch, **invalid_time_metadata, invalid_member_metadata,
+invalid_statistics_metadata, unsupported_native_encoding**. The four final
+reasons implement the latest Q22 confirmation. Incomplete responses require
+response_truncated or pagination_incomplete. Normal first-match stopping is not
+a source failure.
 
-`load_request` accepts a Python mapping, JSON text, or safe YAML text and returns an immutable Request or RequestList. `load_value(value, kind)` loads any root object. `validate_value(value, kind)` returns a fresh plain Python copy, `get_schema(kind)` returns a fresh schema copy, and `dump_value(model, format="json"|"yaml")` serializes a validated model. Errors use `QueryError.code`, `.path`, `.message`, and `.to_dict()`. The language-neutral fixtures in `tests/vectors/v1/` provide positive and negative examples. The JSON Schema files travel in both wheel and source distribution.
+Ordinary errors omit report entirely. CompletenessError stores a read-only
+QueryReport and serializes it as a JSON **object** at top-level report; the
+report is not duplicated into context. Exception chains remain Python-only.
+Unknown format versions fail explicitly; missing/invalid envelope fields are
+not reinterpreted as an older format.
 
-The exchange version is independent of the package version, catalog snapshot, vocabulary snapshot, binding ID, and query ID. T05 canonical values, expansion and identity and T06 limited text syntax are implemented and documented separately.
+## Report and explanation
+
+QueryReport has schema_version=1, completeness, context, overall, queries,
+and translations. Each report Query has contiguous index, query, summary,
+and sorted/unique `{step_index, query_index}` origins. Summary fields are
+status (`complete/missing/unchecked`), expected_count, satisfied_count,
+field_count, missing, reasons. Unknown expected/satisfied counts are both null.
+Counts describe the checked scope, not output shape. Known missing identities
+use `{selection, query_indexes}`; unchecked reasons use code/message/indexes.
+Only expected_set_unknown and selection_not_exhausted are initial summary
+reason codes. Overall status aggregates subqueries; counts are not summed.
+
+`QueryReport.to_json/from_json/to_dict` do no retrieval. Unknown versions fail.
+A Dataset or applicable low-frequency DataArray will carry its JSON string in
+cedarkit_query_report when I05/I08 implement that adapter. This package neither
+imports xarray nor manufactures such output. Report containers are immutable;
+external xarray attrs will still be mutable snapshots.
+
+QueryExplanation contains effective_queries, context, steps, analysis. Each
+step has index/input_queries/effective_queries/changes; changes use normalized,
+constrained, derived, narrowed, pruned, merged. Analysis contains optional-known
+counts (null for unknown), passed/pending checks, and translations. It cannot
+carry execution states, actual field counts, missing fields, or completeness.
+It is diagnostic data, not a replayable Request.
+
+Both translation collections contain exactly one item per effective Query,
+with query_index, coverage, branches, checks. Empty branches require pending
+coverage and a nonblank explanation. Branches have local index, backend,
+scope, candidate_filter, residual, basis. Residual reuses canonical Query fields
+plus resource statistics; it is never a second public selector grammar.
+Execution reports additionally require execution status
+not_started/stopped_early/exhausted; the initial early-stop reason is
+first_match_selected. Exhausted cannot claim that early-stop reason.
+
+Basis kinds are mapping/definition/builtin, or request_association. Resource
+references use `{kind: parameters|mappings|catalog, id: ...}` and must resolve
+in context.definitions; rows additionally require table and resource. A request
+association basis uses an exact `{id, version}` contract and fields, without
+pretending the response independently supplied those fields. Controlled
+translation check codes are context_resolved, return_metadata_sufficient,
+complete_retrieval_supported, request_association_verified. Their passed state
+never proves products exist or all candidates have been retrieved.

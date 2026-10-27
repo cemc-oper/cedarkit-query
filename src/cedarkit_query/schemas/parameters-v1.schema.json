@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:parameters:v1",
+  "title": "CedarKit parameters v1",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "cedarkit.parameters/v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "parameter_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "description_cn": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "parent": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "fixed_conditions": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/fixed"
+          }
+        },
+        "required": [
+          "parameter_id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "api_version",
+    "id",
+    "version",
+    "parameters"
+  ],
+  "additionalProperties": false
+}

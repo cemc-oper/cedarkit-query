@@ -1,0 +1,526 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:mappings:v1",
+  "title": "CedarKit mappings v1",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "cedarkit.mappings/v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "backend": {
+      "enum": [
+        "grib2",
+        "cmadaas"
+      ]
+    },
+    "mappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "parameter_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "backend": {
+            "enum": [
+              "grib2",
+              "cmadaas"
+            ]
+          },
+          "applies_to": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/applies"
+          },
+          "when": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
+          },
+          "native": {
+            "type": "object",
+            "properties": {
+              "match": {
+                "type": "object",
+                "propertyNames": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+                },
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "minItems": 1
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "range": {
+                          "type": "object",
+                          "properties": {
+                            "start": {
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "end": {
+                              "type": [
+                                "string",
+                                "number",
+                                "boolean"
+                              ]
+                            },
+                            "every": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "start",
+                            "end"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "range"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "translate": {
+                "type": "object",
+                "properties": {
+                  "vertical": {
+                    "$ref": "urn:cedarkit:query:common:v1#/$defs/rule"
+                  },
+                  "time": {
+                    "$ref": "urn:cedarkit:query:common:v1#/$defs/rule"
+                  },
+                  "member": {
+                    "$ref": "urn:cedarkit:query:common:v1#/$defs/rule"
+                  },
+                  "statistics": {
+                    "$ref": "urn:cedarkit:query:common:v1#/$defs/rule"
+                  },
+                  "unit": {
+                    "$ref": "urn:cedarkit:query:common:v1#/$defs/rule"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "match"
+            ],
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "parameter_id",
+          "backend",
+          "applies_to",
+          "when",
+          "native",
+          "evidence"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "backend": {
+                  "const": "grib2"
+                }
+              },
+              "required": [
+                "backend"
+              ]
+            },
+            "then": {
+              "properties": {
+                "native": {
+                  "properties": {
+                    "translate": {
+                      "properties": {
+                        "vertical": {
+                          "properties": {
+                            "rule": {
+                              "const": "grib.fixed_surfaces"
+                            }
+                          }
+                        },
+                        "time": {
+                          "properties": {
+                            "rule": {
+                              "const": "grib.time"
+                            }
+                          }
+                        },
+                        "member": {
+                          "properties": {
+                            "rule": {
+                              "const": "grib.member"
+                            }
+                          }
+                        },
+                        "statistics": {
+                          "properties": {
+                            "rule": {
+                              "const": "grib.statistics"
+                            }
+                          }
+                        },
+                        "unit": {
+                          "properties": {
+                            "rule": {
+                              "const": "common.value_unit"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "backend": {
+                  "const": "cmadaas"
+                }
+              },
+              "required": [
+                "backend"
+              ]
+            },
+            "then": {
+              "properties": {
+                "native": {
+                  "properties": {
+                    "translate": {
+                      "properties": {
+                        "vertical": {
+                          "properties": {
+                            "rule": {
+                              "const": "cmadaas.vertical_table"
+                            }
+                          }
+                        },
+                        "time": {
+                          "properties": {
+                            "rule": {
+                              "const": "cmadaas.time_fields"
+                            }
+                          }
+                        },
+                        "member": {
+                          "properties": {
+                            "rule": {
+                              "const": "cmadaas.member_field"
+                            }
+                          }
+                        },
+                        "statistics": {
+                          "properties": {
+                            "rule": {
+                              "const": "cmadaas.statistics_fields"
+                            }
+                          }
+                        },
+                        "unit": {
+                          "properties": {
+                            "rule": {
+                              "const": "common.value_unit"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 0
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "key_kind": {
+            "enum": [
+              "code",
+              "level_type_and_level"
+            ]
+          },
+          "applies_to": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/applies"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                },
+                "native": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": [
+                            "string",
+                            "number",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "code"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "level_type": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                        },
+                        "level": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                        }
+                      },
+                      "required": [
+                        "level_type",
+                        "level"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "canonical": {
+                  "$ref": "urn:cedarkit:query:common:v1#/$defs/fixed"
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                  },
+                  "minItems": 0,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "id",
+                "native",
+                "canonical"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "key_kind",
+          "applies_to",
+          "rows",
+          "evidence"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "key_kind": {
+                  "const": "code"
+                }
+              },
+              "required": [
+                "key_kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "rows": {
+                  "items": {
+                    "properties": {
+                      "native": {
+                        "required": [
+                          "code"
+                        ],
+                        "maxProperties": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "key_kind": {
+                  "const": "level_type_and_level"
+                }
+              },
+              "required": [
+                "key_kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "rows": {
+                  "items": {
+                    "properties": {
+                      "native": {
+                        "required": [
+                          "level_type",
+                          "level"
+                        ],
+                        "maxProperties": 2
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "api_version",
+    "id",
+    "version",
+    "backend",
+    "mappings",
+    "tables"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "backend": {
+            "const": "grib2"
+          }
+        },
+        "required": [
+          "backend"
+        ]
+      },
+      "then": {
+        "properties": {
+          "mappings": {
+            "items": {
+              "properties": {
+                "backend": {
+                  "const": "grib2"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "backend": {
+            "const": "cmadaas"
+          }
+        },
+        "required": [
+          "backend"
+        ]
+      },
+      "then": {
+        "properties": {
+          "mappings": {
+            "items": {
+              "properties": {
+                "backend": {
+                  "const": "cmadaas"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

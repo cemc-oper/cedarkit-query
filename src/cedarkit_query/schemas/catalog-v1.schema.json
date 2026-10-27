@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:catalog:v1",
+  "title": "CedarKit catalog v1",
+  "type": "object",
+  "properties": {
+    "api_version": {
+      "const": "cedarkit.catalog/v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "datasets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                },
+                "scope": {
+                  "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
+                },
+                "provides": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
+                  },
+                  "minItems": 0
+                },
+                "populations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                      },
+                      "members": {
+                        "oneOf": [
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "minItems": 1,
+                            "uniqueItems": true
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "range": {
+                                "type": "object",
+                                "properties": {
+                                  "start": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "end": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "every": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  }
+                                },
+                                "required": [
+                                  "start",
+                                  "end",
+                                  "every"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "range"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "missing": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "policy": {
+                                "const": "require_all"
+                              }
+                            },
+                            "required": [
+                              "policy"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "policy": {
+                                "const": "use_available"
+                              },
+                              "min_members": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            },
+                            "required": [
+                              "policy",
+                              "min_members"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "members",
+                      "missing"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 0
+                },
+                "methods": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "parameter_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                      },
+                      "method": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "weighting": {
+                                "const": "equal"
+                              },
+                              "ddof": {
+                                "enum": [
+                                  0,
+                                  1
+                                ]
+                              }
+                            },
+                            "required": [],
+                            "additionalProperties": false,
+                            "minProperties": 1
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "enum": [
+                                  "sample_mean",
+                                  "interval_weighted_mean",
+                                  "member_fraction",
+                                  "empirical_inverse_cdf"
+                                ]
+                              },
+                              "weighting": {
+                                "const": "equal"
+                              },
+                              "denominator": {
+                                "enum": [
+                                  "expected_members",
+                                  "valid_members"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "parameter_id",
+                      "method"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 0
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                          },
+                          "kind": {
+                            "enum": [
+                              "file",
+                              "local"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                          },
+                          "kind": {
+                            "const": "cmadaas"
+                          },
+                          "data_code": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                          },
+                          "interface_contract": {
+                            "$ref": "urn:cedarkit:query:common:v1#/$defs/contract"
+                          },
+                          "time_zone": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "data_code",
+                          "interface_contract",
+                          "time_zone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "minItems": 1
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                  },
+                  "minItems": 0,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "id",
+                "version",
+                "scope",
+                "provides",
+                "populations",
+                "methods",
+                "sources",
+                "evidence"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0
+          },
+          "mappings": {
+            "type": "object",
+            "properties": {
+              "grib2": {
+                "$ref": "urn:cedarkit:query:common:v1#/$defs/resource_ref"
+              },
+              "cmadaas": {
+                "$ref": "urn:cedarkit:query:common:v1#/$defs/resource_ref"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "member_roles": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/member_roles"
+          },
+          "execution": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/execution"
+          }
+        },
+        "required": [
+          "id",
+          "products"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "api_version",
+    "id",
+    "version",
+    "datasets"
+  ],
+  "additionalProperties": false
+}

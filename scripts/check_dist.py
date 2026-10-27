@@ -1,58 +1,125 @@
-"""Check source/wheel contents and import a wheel outside the checkout."""
+"""Check this package's sdist/wheel and isolated import; no cross-package harness."""
 
 from __future__ import annotations
 
+import argparse
+import email
+import os
+from pathlib import Path
 import subprocess
 import tarfile
 import tempfile
 import zipfile
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SDIST = ROOT / "dist" / "cedarkit_query-0.1.0.tar.gz"
-WHEEL = ROOT / "dist" / "cedarkit_query-0.1.0-py3-none-any.whl"
-KINDS = ("request", "request-list", "query", "binding", "transform", "data-reference", "response", "error")
-
-with tarfile.open(SDIST) as archive:
-    names = archive.getnames()
-    assert sum("/schemas/" in name and name.endswith(".json") for name in names) == 8
-    assert sum("/tests/vectors/v1/" in name and name.endswith(".json") for name in names) == 4
-    assert any(name.endswith("/docs/protocol-v1.md") for name in names)
-    assert any(name.endswith("/docs/normalization-v1.md") for name in names)
-    assert any(name.endswith("/docs/text-v1.md") for name in names)
-    assert any(name.endswith("/scripts/build_schemas.py") for name in names)
-with zipfile.ZipFile(WHEEL) as archive:
-    names = archive.namelist()
-    assert sum(name.startswith("cedarkit_query/schemas/") and name.endswith(".json") for name in names) == 8
-
-with tempfile.TemporaryDirectory(prefix="cedarkit-query-wheel-") as temporary:
-    checkout_free = Path(temporary)
-    interpreter = checkout_free / ".venv/bin/python"
-    subprocess.run(["uv", "venv", "--python", "3.11", str(checkout_free / ".venv")],
-                   check=True, capture_output=True)
-    subprocess.run(["uv", "pip", "install", "--python", str(interpreter), str(WHEEL)],
-                   check=True, capture_output=True)
-    check = '''
+KINDS = (
+    "common",
+    "query",
+    "context",
+    "request",
+    "report",
+    "explanation",
+    "error",
+    "parameters",
+    "mappings",
+    "catalog",
+)
+CHECK = """
 import importlib.metadata
+from pathlib import Path
 import sys
-from cedarkit_query import get_schema, load_request, normalize_request, parse_text_request, parse_text_requests, query_identity
-assert importlib.metadata.version("cedarkit-query") == "0.1.0"
-for kind in ("request", "request-list", "query", "binding", "transform", "data-reference", "response", "error"):
-    assert get_schema(kind)["$id"] == f"urn:cedarkit:query:{kind}:v1"
-request = load_request({"api_version": "cedarkit.request/v1", "action": "validate",
-                        "query": {"api_version": "cedarkit.query/v1", "domain": "grid", "dataset": "example.grid"}})
-assert request.query.dataset == "example.grid"
-prepared = normalize_request({"api_version": "cedarkit.request/v1", "action": "locate",
-                              "query": {"api_version": "cedarkit.query/v1", "domain": "grid",
-                                        "dataset": "example.grid", "parameter": "cedarkit.t",
-                                        "reference_time": "2026-08-30T08:00:00+08:00", "lead_time": "P1D"}})
-assert prepared.normalized_request.query.reference_time == "2026-08-30T00:00:00Z"
-assert query_identity(prepared).startswith("sha256:")
-assert parse_text_request("VALIDATE dataset=example.grid").query.dataset == "example.grid"
-assert len(parse_text_requests("VALIDATE dataset=a\\n---\\nVALIDATE dataset=b").requests) == 2
-assert not {"reki", "pandas", "xarray", "eccodes"} & set(sys.modules)
-print(sys.version.split()[0], "external wheel import and 8 packaged schemas: OK")
-'''
-    subprocess.run([str(interpreter), "-I", "-c", check], cwd=checkout_free, check=True)
+import cedarkit_query as cq
+assert Path(cq.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
+assert importlib.metadata.version("cedarkit-query") == sys.argv[1]
+for kind in ("common", "query", "context", "request", "report", "explanation", "error", "parameters", "mappings", "catalog"):
+    assert cq.get_schema(kind)["$id"] == f"urn:cedarkit:query:{kind}:v1"
+request = cq.Request.from_dict({"api_version": "cedarkit.request/v1", "source": {"kind": "file", "path": "absent.grib2"}, "queries": [{}]})
+assert request.completeness is None
+assert cq.normalize_query({"level_type":"pressure", "level":85000, "level_unit":"Pa"}).level == 850
+assert not {"reki", "pandas", "xarray", "eccodes", "nuwe_cmadaas"} & set(sys.modules)
+for old in ("RequestList", "Binding", "Response", "Transform", "parse_text_request"):
+    assert not hasattr(cq, old)
+print(sys.version.split()[0], "isolated wheel import and 10 packaged schemas: OK")
+"""
 
-print("source distribution, wheel resources, lightweight import: OK")
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dist", type=Path, default=ROOT / "dist")
+    parser.add_argument("--python", default="3.11")
+    parser.add_argument("--offline", action="store_true")
+    args = parser.parse_args()
+    wheels = list(args.dist.glob("*.whl"))
+    sdists = list(args.dist.glob("*.tar.gz"))
+    assert len(wheels) == len(sdists) == 1, (
+        "provide a directory with one exact candidate pair"
+    )
+    wheel, sdist = wheels[0].resolve(), sdists[0].resolve()
+    with tarfile.open(sdist) as archive:
+        names = archive.getnames()
+        assert sum("/schemas/" in n and n.endswith(".json") for n in names) == 10
+        assert (
+            sum("/tests/vectors/v1/" in n and n.endswith(".json") for n in names) == 3
+        )
+        assert sum("/examples/" in n and n.endswith(".json") for n in names) == 4
+        for name in (
+            "resources-v1.md",
+            "rules-v1.md",
+            "protocol-v1.md",
+            "normalization-v1.md",
+        ):
+            assert any(n.endswith("/docs/" + name) for n in names)
+        assert any(n.endswith("/scripts/build_schemas.py") for n in names)
+        assert not any(
+            n.endswith("/text.py") or n.endswith("/text.json") for n in names
+        )
+    with zipfile.ZipFile(wheel) as archive:
+        names = archive.namelist()
+        assert {
+            n.split("/")[-1] for n in names if "/schemas/" in n and n.endswith(".json")
+        } == {k + "-v1.schema.json" for k in KINDS}
+        metadata = email.message_from_bytes(
+            archive.read(next(n for n in names if n.endswith("/METADATA")))
+        )
+        assert metadata["Requires-Python"] == ">=3.11"
+        assert metadata.get_all("Requires-Dist") == ["jsonschema>=4.20", "PyYAML>=6"]
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    offline = ["--offline"] if args.offline else []
+    with tempfile.TemporaryDirectory(prefix="cedarkit-query-wheel-") as temporary:
+        workspace = Path(temporary)
+        venv = workspace / ".venv"
+        interpreter = venv / "bin/python"
+        subprocess.run(
+            ["uv", "venv", *offline, "--python", args.python, str(venv)],
+            check=True,
+            env=env,
+        )
+        subprocess.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                *offline,
+                "--python",
+                str(interpreter),
+                str(wheel),
+            ],
+            check=True,
+            env=env,
+        )
+        subprocess.run(
+            ["uv", "pip", "check", "--python", str(interpreter)], check=True, env=env
+        )
+        subprocess.run(
+            [str(interpreter), "-I", "-c", CHECK, metadata["Version"]],
+            cwd=workspace,
+            check=True,
+            env=env,
+        )
+    print("single-package sdist, wheel resources, lightweight import: OK")
+
+
+if __name__ == "__main__":
+    main()

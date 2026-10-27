@@ -9,32 +9,45 @@
     },
     "code": {
       "enum": [
+        "invalid_request",
+        "unsupported_version",
+        "invalid_config",
         "invalid_query",
-        "invalid_version",
-        "unknown_dataset",
-        "unknown_parameter",
-        "unmapped_parameter",
-        "ambiguous_mapping",
+        "constraint_conflict",
         "unsupported",
-        "expansion_limit",
-        "not_found",
+        "expansion_limit_exceeded",
+        "no_match",
         "multiple_matches",
-        "availability_unknown",
+        "missing_fields",
+        "completeness_undetermined",
+        "duplicate_field",
+        "incompatible_grid",
+        "multiple_variables",
+        "resource_not_found",
         "permission_denied",
-        "provider_error",
-        "stale_reference"
+        "authentication_failed",
+        "timeout",
+        "decode_failed",
+        "io_error",
+        "service_error",
+        "metadata_interpretation_failed",
+        "incomplete_response"
       ]
     },
     "path": {
       "type": "string",
-      "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+      "pattern": "^(?:/(?:[^~]|~[01])*)?$"
     },
     "message": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
     },
     "context": {
       "type": "object"
+    },
+    "report": {
+      "$ref": "urn:cedarkit:query:report:v1"
     }
   },
   "required": [
@@ -44,5 +57,31 @@
     "message",
     "context"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "enum": [
+              "missing_fields",
+              "completeness_undetermined"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "report"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "report"
+          ]
+        }
+      }
+    }
+  ]
 }

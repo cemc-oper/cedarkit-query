@@ -7,150 +7,39 @@
     "api_version": {
       "const": "cedarkit.request/v1"
     },
-    "action": {
-      "enum": [
-        "validate",
-        "plan",
-        "list",
-        "locate",
-        "read"
-      ]
+    "source": {
+      "$ref": "urn:cedarkit:query:common:v1#/$defs/source"
     },
-    "query": {
-      "$ref": "urn:cedarkit:query:query:v1"
-    },
-    "policy": {
-      "type": "object",
-      "properties": {
-        "cardinality": {
-          "enum": [
-            "one",
-            "zero_or_one",
-            "all"
-          ]
-        },
-        "missing": {
-          "enum": [
-            "error",
-            "partial"
-          ]
-        },
-        "duplicates": {
-          "const": "error"
-        }
-      },
-      "required": [],
-      "additionalProperties": false,
-      "allOf": [
+    "context": {
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "cardinality": {
-                "const": "zero_or_one"
-              }
-            },
-            "required": [
-              "cardinality"
-            ]
-          },
-          "then": {
-            "properties": {
-              "missing": {
-                "const": "partial"
-              }
-            },
-            "required": [
-              "missing"
-            ]
-          }
+          "$ref": "urn:cedarkit:query:common:v1#/$defs/context"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
         }
       ]
     },
-    "transforms": {
-      "$ref": "urn:cedarkit:query:transform:v1"
-    },
-    "options": {
-      "type": "object",
-      "properties": {
-        "max_expansion": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4096
-        },
-        "output": {
-          "type": "object",
-          "properties": {
-            "format": {
-              "const": "netcdf"
-            },
-            "path": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "format",
-            "path"
-          ],
-          "additionalProperties": false
-        }
+    "queries": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
       },
-      "required": [],
-      "additionalProperties": false
+      "minItems": 1
+    },
+    "completeness": {
+      "enum": [
+        "available",
+        "required"
+      ]
     }
   },
   "required": [
     "api_version",
-    "action",
-    "query"
+    "source",
+    "queries"
   ],
-  "additionalProperties": false,
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "action": {
-            "enum": [
-              "plan",
-              "locate",
-              "read"
-            ]
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "query": {
-            "required": [
-              "parameter",
-              "reference_time",
-              "lead_time"
-            ]
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "action": {
-            "not": {
-              "const": "read"
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "options": {
-            "not": {
-              "required": [
-                "output"
-              ]
-            }
-          }
-        }
-      }
-    }
-  ]
+  "additionalProperties": false
 }

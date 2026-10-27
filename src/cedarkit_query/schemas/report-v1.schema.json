@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:report:v1",
+  "title": "CedarKit report v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "completeness": {
+      "enum": [
+        "available",
+        "required"
+      ]
+    },
+    "context": {
+      "$ref": "urn:cedarkit:query:common:v1#/$defs/report_context"
+    },
+    "overall": {
+      "$ref": "urn:cedarkit:query:common:v1#/$defs/summary"
+    },
+    "queries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "query": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
+          },
+          "summary": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/summary"
+          },
+          "origins": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/origins"
+          }
+        },
+        "required": [
+          "index",
+          "query",
+          "summary",
+          "origins"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "translations": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:cedarkit:query:common:v1#/$defs/translation_execution"
+      },
+      "minItems": 0
+    }
+  },
+  "required": [
+    "schema_version",
+    "completeness",
+    "context",
+    "overall",
+    "queries",
+    "translations"
+  ],
+  "additionalProperties": false
+}

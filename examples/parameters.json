@@ -1,0 +1,95 @@
+{
+  "api_version": "cedarkit.parameters/v1",
+  "id": "test.parameters",
+  "version": "1",
+  "parameters": [
+    {
+      "parameter_id": "cedarkit.t",
+      "name": "t",
+      "aliases": [
+        "temperature"
+      ],
+      "unit": "K"
+    },
+    {
+      "parameter_id": "cedarkit.t2m",
+      "name": "t2m",
+      "parent": "cedarkit.t",
+      "fixed_conditions": {
+        "level_type": "height_above_ground",
+        "level": 2
+      }
+    },
+    {
+      "parameter_id": "cedarkit.st",
+      "name": "st",
+      "parent": "cedarkit.t",
+      "fixed_conditions": {
+        "level_type": "depth_below_land"
+      }
+    },
+    {
+      "parameter_id": "cedarkit.st-10-40",
+      "name": "st(10-40)",
+      "parent": "cedarkit.st",
+      "fixed_conditions": {
+        "layer": {
+          "bottom": 0.4,
+          "top": 0.1
+        }
+      }
+    },
+    {
+      "parameter_id": "cedarkit.rain",
+      "name": "rain",
+      "unit": "mm",
+      "fixed_conditions": {
+        "statistics": {
+          "over": "time",
+          "operation": "accumulation"
+        }
+      }
+    },
+    {
+      "parameter_id": "cedarkit.rain24",
+      "name": "rain24",
+      "parent": "cedarkit.rain",
+      "fixed_conditions": {
+        "statistics": {
+          "period": {
+            "kind": "trailing",
+            "duration": "PT24H"
+          }
+        }
+      }
+    },
+    {
+      "parameter_id": "cedarkit.rain24.prob",
+      "name": "rain24p25",
+      "unit": "%",
+      "fixed_conditions": {
+        "statistics": {
+          "over": "ensemble",
+          "operation": "probability",
+          "of": {
+            "parameter_id": "cedarkit.rain24"
+          },
+          "population": {
+            "ref": "all"
+          },
+          "event": {
+            "operator": "ge",
+            "threshold": {
+              "value": 25,
+              "unit": "mm"
+            }
+          },
+          "method": {
+            "kind": "member_fraction",
+            "denominator": "expected_members"
+          }
+        }
+      }
+    }
+  ]
+}

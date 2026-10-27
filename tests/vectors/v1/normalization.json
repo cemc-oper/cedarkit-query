@@ -1,81 +1,61 @@
 [
   {
-    "name": "timezone-duration-pressure",
-    "input": {
-      "api_version": "cedarkit.request/v1",
-      "action": "locate",
-      "query": {
-        "api_version": "cedarkit.query/v1",
-        "domain": "grid",
-        "dataset": "example.grid",
-        "parameter": "cedarkit.t",
-        "reference_time": "2026-08-30T08:00:00+08:00",
-        "lead_time": "P1D",
-        "vertical": {"type": "isobaric", "unit": "hPa", "values": [850, 500, 850]}
-      }
+    "id": "pressure",
+    "value": {
+      "level_type": "pressure",
+      "level": 85000,
+      "level_unit": "Pa"
     },
-    "normalized_query": {
-      "api_version": "cedarkit.query/v1",
-      "domain": "grid",
-      "dataset": "example.grid",
-      "parameter": "cedarkit.t",
-      "reference_time": "2026-08-30T00:00:00Z",
-      "lead_time": "PT86400S",
-      "vertical": {"type": "isobaric", "unit": "Pa", "values": [50000, 85000]}
-    },
-    "expanded_count": 2,
-    "query_id": "sha256:2d1a7804b5165f54d7440598bbd8fcb7be260f9926d46ccaa1dcbc7995a6840f"
+    "expected": {
+      "level_type": "pressure",
+      "level": 850,
+      "level_unit": "hPa"
+    }
   },
   {
-    "name": "inclusive-duration-range",
-    "input": {
-      "api_version": "cedarkit.request/v1",
-      "action": "locate",
-      "query": {
-        "api_version": "cedarkit.query/v1",
-        "domain": "grid",
-        "dataset": "example.grid",
-        "parameter": "cedarkit.t",
-        "reference_time": "2026-08-30T00:00:00Z",
-        "lead_time": {"start": "PT0H", "stop": "PT12H", "step": "PT6H", "closed": "both"}
-      }
+    "id": "utc-nanoseconds",
+    "value": {
+      "time": "2026-10-27T08:00:00.123456789+08:00"
     },
-    "normalized_query": {
-      "api_version": "cedarkit.query/v1",
-      "domain": "grid",
-      "dataset": "example.grid",
-      "parameter": "cedarkit.t",
-      "reference_time": "2026-08-30T00:00:00Z",
-      "lead_time": ["PT0S", "PT21600S", "PT43200S"]
-    },
-    "expanded_count": 3,
-    "query_id": "sha256:37638db93f832fe8de41b136421859ae16f6e914927a257ca42174a5af7cbf29"
+    "expected": {
+      "time": "2026-10-27T00:00:00.123456789Z"
+    }
   },
   {
-    "name": "explicit-alias-snapshots",
-    "input": {
-      "api_version": "cedarkit.request/v1",
-      "action": "locate",
-      "query": {
-        "api_version": "cedarkit.query/v1",
-        "domain": "grid",
-        "dataset": {"namespace": "catalog", "name": "gfs"},
-        "parameter": {"namespace": "cmadaas", "name": "TEM"},
-        "reference_time": "2026-08-30T00:00:00Z",
-        "lead_time": "PT24H"
+    "id": "derived-time",
+    "value": {
+      "time": "2026-10-27T00:00:00Z",
+      "step": "PT6H"
+    },
+    "expected": {
+      "time": "2026-10-27T00:00:00Z",
+      "step": "PT21600S",
+      "valid_time": "2026-10-27T06:00:00Z"
+    }
+  },
+  {
+    "id": "soil-layer",
+    "value": {
+      "level_type": "depth_below_land",
+      "level_unit": "cm",
+      "layer": {
+        "bottom": 40,
+        "top": 10
       }
     },
-    "catalog_snapshot": {"version": "c1", "aliases": {"catalog": {"gfs": "example.grid"}}},
-    "vocabulary_snapshot": {"version": "v1", "aliases": {"cmadaas": {"TEM": "cedarkit.t"}}},
-    "normalized_query": {
-      "api_version": "cedarkit.query/v1",
-      "domain": "grid",
-      "dataset": "example.grid",
-      "parameter": "cedarkit.t",
-      "reference_time": "2026-08-30T00:00:00Z",
-      "lead_time": "PT86400S"
-    },
-    "expanded_count": 1,
-    "query_id": "sha256:ad91c35bd2a95c77e0ae7810a8d64e7c3421ca26f0eaab176302d52f818b787c"
+    "expected": {
+      "layer": {
+        "bottom": {
+          "type": "depth_below_land",
+          "value": 0.4,
+          "unit": "m"
+        },
+        "top": {
+          "type": "depth_below_land",
+          "value": 0.1,
+          "unit": "m"
+        }
+      }
+    }
   }
 ]

@@ -1,283 +1,369 @@
-"""Immutable JSON-compatible values for the CedarKit grid query protocol."""
+"""Immutable declaration values and the single Python/JSON/YAML validation path."""
 
 from __future__ import annotations
 
-import json
-import math
-from dataclasses import dataclass
+from collections.abc import Mapping
 from functools import lru_cache
 from importlib.resources import files
-from types import MappingProxyType
-from typing import Any, ClassVar, Mapping
+from pathlib import Path
+from typing import ClassVar
+from yaml import YAMLError
+import os
 
-import yaml
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import Draft202012Validator, validators
 from referencing import Registry, Resource
 
-KINDS = ("request", "request-list", "query", "binding", "transform", "data-reference", "response", "error")
+from ._json import freeze, parse, plain, pointer, serialize, thaw
+from .errors import QueryError
+
+KINDS = (
+    "common",
+    "query",
+    "context",
+    "request",
+    "report",
+    "explanation",
+    "error",
+    "parameters",
+    "mappings",
+    "catalog",
+)
+VERSIONS = {
+    "request": "cedarkit.request/v1",
+    "error": "cedarkit.error/v1",
+    "parameters": "cedarkit.parameters/v1",
+    "mappings": "cedarkit.mappings/v1",
+    "catalog": "cedarkit.catalog/v1",
+}
+StrictValidator = validators.extend(
+    Draft202012Validator,
+    type_checker=Draft202012Validator.TYPE_CHECKER.redefine(
+        "integer", lambda checker, value: type(value) is int
+    ),
+)
 
 
-class QueryError(ValueError):
-    """A protocol validation error with a stable code and JSON Pointer path."""
-
-    def __init__(self, code: str, path: str, message: str, context: Mapping[str, Any] | None = None):
-        self.code = code
-        self.path = path
-        self.message = message
-        self.context = dict(context or {})
-        super().__init__(f"{code} at {path or '/'}: {message}")
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"api_version": "cedarkit.error/v1", "code": self.code, "path": self.path,
-                "message": self.message, "context": dict(self.context)}
-
-
-def _pointer(parts: Any) -> str:
-    return "".join("/" + str(part).replace("~", "~0").replace("/", "~1") for part in parts)
-
-
-def _plain(value: Any, path: str = "", active: set[int] | None = None) -> Any:
-    """Copy Python input to the JSON value domain before schema validation."""
-    if active is None:
-        active = set()
-    if isinstance(value, ProtocolValue):
-        value = value.to_dict()
-    if value is None:
-        raise QueryError("invalid_query", path, "null is not allowed")
-    if isinstance(value, str):
-        if not value and path not in ("/path", "/error/path"):
-            raise QueryError("invalid_query", path, "empty strings are not allowed")
-        return value
-    if isinstance(value, bool) or isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        if not math.isfinite(value):
-            raise QueryError("invalid_query", path, "non-finite numbers are not allowed")
-        return value
-    if isinstance(value, (Mapping, list, tuple)):
-        identity = id(value)
-        if identity in active:
-            raise QueryError("invalid_query", path, "cyclic values are not allowed")
-        active.add(identity)
-        try:
-            if isinstance(value, Mapping):
-                result = {}
-                for key, item in value.items():
-                    if not isinstance(key, str) or not key:
-                        raise QueryError("invalid_query", path, "object keys must be non-empty strings")
-                    result[key] = _plain(item, path + "/" + key.replace("~", "~0").replace("/", "~1"), active)
-                return result
-            return [_plain(item, f"{path}/{index}", active) for index, item in enumerate(value)]
-        finally:
-            active.remove(identity)
-    raise QueryError("invalid_query", path, f"unsupported Python value: {type(value).__name__}")
-
-
-def _freeze(value: Any) -> Any:
-    if isinstance(value, dict):
-        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
-    if isinstance(value, list):
-        return tuple(_freeze(item) for item in value)
-    return value
-
-
-def _thaw(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {key: _thaw(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_thaw(item) for item in value]
-    return value
-
-
-def get_schema(kind: str) -> dict[str, Any]:
-    """Return a copy of a packaged JSON Schema Draft 2020-12 resource."""
+def get_schema(kind):
     if kind not in KINDS:
-        raise ValueError(f"unknown protocol kind: {kind}")
-    resource = files("cedarkit_query").joinpath("schemas", f"{kind}-v1.schema.json")
-    return json.loads(resource.read_text(encoding="utf-8"))
+        raise ValueError(f"unknown schema kind: {kind}")
+    import json
+
+    return json.loads(
+        files("cedarkit_query")
+        .joinpath("schemas", f"{kind}-v1.schema.json")
+        .read_text()
+    )
 
 
 @lru_cache(maxsize=len(KINDS))
-def _validator(kind: str) -> Draft202012Validator:
-    # The eight versioned resources form a closed graph of $refs.
-    schemas = {name: get_schema(name) for name in KINDS}
+def _validator(kind):
+    schemas = [get_schema(k) for k in KINDS]
     registry = Registry().with_resources(
-        (contents["$id"], Resource.from_contents(contents)) for contents in schemas.values()
+        (s["$id"], Resource.from_contents(s)) for s in schemas
     )
-    return Draft202012Validator(schemas[kind], registry=registry, format_checker=FormatChecker())
+    return StrictValidator(get_schema(kind), registry=registry)
 
 
-def validate_value(value: Any, kind: str) -> dict[str, Any]:
-    """Validate a value and return an independent plain Python copy."""
-    if kind not in KINDS:
-        raise ValueError(f"unknown protocol kind: {kind}")
-    plain = _plain(value)
-    errors = sorted(_validator(kind).iter_errors(plain), key=lambda error: (_pointer(error.absolute_path), error.message))
-    if errors:
-        error = errors[0]
-        path = _pointer(error.absolute_path)
-        if error.validator == "required":
-            missing = next(iter(error.validator_value)) if len(error.validator_value) == 1 else None
-            if missing:
-                path += "/" + missing.replace("~", "~0").replace("/", "~1")
-        code = "invalid_version" if path.endswith("/api_version") else "invalid_query"
-        raise QueryError(code, path, error.message)
-    return plain
+def _best(error):
+    """Prefer the matching discriminator/type branch of a oneOf diagnostic."""
+    if not error.context:
+        return error
+    groups = {}
+    for child in error.context:
+        groups.setdefault(child.schema_path[0], []).append(child)
+
+    def rank(children):
+        return (sum(e.validator in {"const", "type"} for e in children), len(children))
+
+    children = min(groups.values(), key=rank)
+    return min(
+        (_best(c) for c in children), key=lambda e: (-len(e.absolute_path), e.message)
+    )
 
 
-@dataclass(frozen=True, init=False)
+def validate_value(value, kind):
+    """Structure plus shared semantic validation; never loads referenced resources."""
+    if kind not in KINDS or kind == "common":
+        raise ValueError(f"not a value kind: {kind}")
+    code = (
+        "invalid_query"
+        if kind == "query"
+        else "invalid_request"
+        if kind == "request"
+        else "invalid_config"
+    )
+    try:
+        data = plain(value)
+    except ValueError as exc:
+        location, _, message = str(exc).partition(": ")
+        raise QueryError(
+            code, location if location.startswith("/") else "", message or str(exc)
+        ) from exc
+    if isinstance(data, dict):
+        if (
+            kind in VERSIONS
+            and "api_version" in data
+            and isinstance(data["api_version"], str)
+            and data["api_version"] != VERSIONS[kind]
+        ):
+            raise QueryError(
+                "unsupported_version", "/api_version", "unsupported format version"
+            )
+        if (
+            kind == "report"
+            and "schema_version" in data
+            and type(data["schema_version"]) is int
+            and data["schema_version"] != 1
+        ):
+            raise QueryError(
+                "unsupported_version", "/schema_version", "unsupported report version"
+            )
+    if kind == "mappings":
+        from .resources import preflight_rules
+
+        preflight_rules(data)
+    error = next(_validator(kind).iter_errors(data), None)
+    if error is not None:
+        error = _best(error)
+        parts = list(error.absolute_path)
+        if error.validator == "required" and isinstance(error.instance, dict):
+            parts.append(
+                next(k for k in error.validator_value if k not in error.instance)
+            )
+        elif error.validator == "additionalProperties" and isinstance(
+            error.instance, dict
+        ):
+            extras = set(error.instance) - set(error.schema.get("properties", {}))
+            if extras:
+                parts.append(sorted(extras)[0])
+        if kind == "request" and parts:
+            if parts[0] == "queries" and len(parts) > 1:
+                code = "invalid_query"
+            elif parts[0] in {"source", "context"}:
+                code = "invalid_config"
+        raise QueryError(code, pointer(parts), error.message)
+    from .validation import validate_semantics
+
+    validate_semantics(data, kind)
+    return data
+
+
+def validate_fragment(value, name, *, path="", code="invalid_config"):
+    """Validate a shared schema fragment without resolving business references."""
+    try:
+        data = plain(value)
+    except ValueError as exc:
+        raise QueryError(code, path, str(exc)) from exc
+    validator = _validator("context").evolve(
+        schema={"$ref": "urn:cedarkit:query:common:v1#/$defs/" + name}
+    )
+    error = next(validator.iter_errors(data), None)
+    if error is not None:
+        error = _best(error)
+        raise QueryError(code, path + pointer(error.absolute_path), error.message)
+    return data
+
+
 class ProtocolValue:
-    """Immutable protocol value; nested maps and arrays are immutable too."""
-
-    _value: Mapping[str, Any]
+    _value: Mapping
     KIND: ClassVar[str] = ""
 
-    def __init__(self, value: Mapping[str, Any]):
-        plain = validate_value(value, self.KIND)
-        object.__setattr__(self, "_value", _freeze(plain))
+    def __setattr__(self, name, value):
+        raise AttributeError("protocol values are immutable")
 
-    def to_dict(self) -> dict[str, Any]:
-        return _thaw(self._value)
+    def __delattr__(self, name):
+        raise AttributeError("protocol values are immutable")
 
-    def __getattr__(self, name: str) -> Any:
+    def __eq__(self, other):
+        return type(self) is type(other) and self._value == other._value
+
+    __hash__ = None
+
+    def __init__(self, value):
+        object.__setattr__(self, "_value", freeze(validate_value(value, self.KIND)))
+
+    def to_dict(self):
+        return thaw(self._value)
+
+    def __getattr__(self, name):
         if name in self._value:
-            value = self._value[name]
-            if self.KIND == "request" and name == "query":
-                return Query(value)
-            if self.KIND == "request" and name == "transforms":
-                return Transform(value)
-            if self.KIND == "request-list" and name == "requests":
-                return tuple(Request(item) for item in value)
-            return value
+            return self._value[name]
         raise AttributeError(name)
+
+
+_UNSET = object()
 
 
 class Query(ProtocolValue):
     KIND = "query"
 
-
-class Binding(ProtocolValue):
-    KIND = "binding"
-
-
-class Transform(ProtocolValue):
-    KIND = "transform"
-
-
-class DataReference(ProtocolValue):
-    KIND = "data-reference"
+    def __init__(self, value=_UNSET, **conditions):
+        if value is not _UNSET and conditions:
+            raise QueryError(
+                "invalid_query",
+                "",
+                "use a Query mapping or keyword conditions, not both",
+            )
+        super().__init__(conditions if value is _UNSET else value)
 
 
 class Request(ProtocolValue):
     KIND = "request"
 
+    def __init__(self, value, *, base_dir=None):
+        data = validate_value(value, "request")
+        base = Path.cwd() if base_dir is None else Path(base_dir).absolute()
 
-class RequestList(ProtocolValue):
-    KIND = "request-list"
+        def absolute(path):
+            return os.path.abspath(base / path)
+
+        source = data["source"]
+        for key in ("path", "directory", "root", "config"):
+            if key in source:
+                source[key] = (
+                    [absolute(p) for p in source[key]]
+                    if isinstance(source[key], list)
+                    else absolute(source[key])
+                )
+        context = data.get("context")
+        if isinstance(context, str):
+            data["context"] = absolute(context)
+        elif isinstance(context, dict):
+            data["context"] = Context.from_dict(context, base_dir=base).to_dict()
+        object.__setattr__(self, "_value", freeze(data))
+
+    @classmethod
+    def from_dict(cls, data, *, base_dir=None):
+        return cls(data, base_dir=base_dir)
+
+    @classmethod
+    def load(cls, path):
+        path = Path(path).absolute()
+        try:
+            data = parse(path.read_text(encoding="utf-8"), _format(path))
+        except (OSError, ValueError, YAMLError) as exc:
+            raise QueryError(
+                "invalid_request", "", "cannot load request", {"document": str(path)}
+            ) from exc
+        return cls.from_dict(data, base_dir=path.parent)
+
+    @property
+    def queries(self):
+        return tuple(Query(q) for q in self._value["queries"])
+
+    @property
+    def context(self):
+        return self._value.get("context")
+
+    @property
+    def completeness(self):
+        return self._value.get("completeness")
+
+    def dump(self, path):
+        path = Path(path)
+        path.write_text(serialize(self, _format(path)), encoding="utf-8")
 
 
-class Response(ProtocolValue):
-    KIND = "response"
+class QueryReport(ProtocolValue):
+    KIND = "report"
+
+    def to_json(self):
+        return serialize(self)
+
+    @classmethod
+    def from_json(cls, text):
+        return load_value(text, "report", format="json")
+
+
+class QueryExplanation(ProtocolValue):
+    KIND = "explanation"
 
 
 class ErrorValue(ProtocolValue):
     KIND = "error"
 
 
-MODELS = {model.KIND: model for model in
-          (Request, RequestList, Query, Binding, Transform, DataReference, Response, ErrorValue)}
+class Parameters(ProtocolValue):
+    KIND = "parameters"
 
 
-def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise QueryError("invalid_query", "", f"duplicate JSON key: {key}")
-        result[key] = value
-    return result
+class Mappings(ProtocolValue):
+    KIND = "mappings"
 
 
-class _UniqueLoader(yaml.SafeLoader):
-    pass
+class Catalog(ProtocolValue):
+    KIND = "catalog"
 
 
-# Protocol times are strings. SafeLoader otherwise converts unquoted YAML
-# timestamps to Python datetime objects before schema validation.
-_UniqueLoader.yaml_implicit_resolvers = {
-    initial: [(tag, pattern) for tag, pattern in resolvers
-              if tag != "tag:yaml.org,2002:timestamp"]
-    for initial, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+class Context(ProtocolValue):
+    KIND = "context"
+
+    def __init__(self, value, *, base_dir=None):
+        data = validate_value(value, "context")
+        base = Path.cwd() if base_dir is None else Path(base_dir).absolute()
+        refs = [data.get(key) for key in ("parameter_registry", "catalog")]
+        refs.extend(data.get("mappings", {}).values())
+        for ref in refs:
+            if ref and "path" in ref:
+                ref["path"] = os.path.abspath(base / ref["path"])
+        object.__setattr__(self, "_value", freeze(data))
+
+    @classmethod
+    def from_dict(cls, data, *, base_dir=None):
+        return cls(data, base_dir=base_dir)
+
+
+MODELS = {
+    model.KIND: model
+    for model in (
+        Query,
+        Request,
+        QueryReport,
+        QueryExplanation,
+        ErrorValue,
+        Parameters,
+        Mappings,
+        Catalog,
+        Context,
+    )
 }
 
 
-def _yaml_mapping(loader: _UniqueLoader, node: yaml.MappingNode) -> dict[str, Any]:
-    result = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=True)
-        if not isinstance(key, str) or not key:
-            raise QueryError("invalid_query", "", "YAML object keys must be non-empty strings")
-        if key in result:
-            raise QueryError("invalid_query", "", f"duplicate YAML key: {key}")
-        result[key] = loader.construct_object(value_node, deep=True)
-    return result
+def _format(path):
+    suffix = path.suffix.lower()
+    if suffix not in {".yaml", ".yml", ".json"}:
+        raise ValueError("expected .yaml/.yml/.json")
+    return "json" if suffix == ".json" else "yaml"
 
 
-_UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _yaml_mapping)
-
-
-def load_value(value: Mapping[str, Any] | str | ProtocolValue, kind: str, *, format: str | None = None) -> ProtocolValue:
-    """Load a protocol value from Python, JSON, or safe YAML."""
-    if kind not in MODELS:
-        raise ValueError(f"unknown protocol kind: {kind}")
+def load_value(value, kind, *, format=None, base_dir=None):
     if isinstance(value, str):
-        value = _parse_text(value, format)
+        try:
+            value = parse(value, format)
+        except (ValueError, YAMLError) as exc:
+            raise QueryError(
+                "invalid_request"
+                if kind == "request"
+                else "invalid_query"
+                if kind == "query"
+                else "invalid_config",
+                "",
+                str(exc),
+            ) from exc
     elif format is not None:
         raise ValueError("format is only valid for text input")
-    return MODELS[kind](value)
+    return (
+        MODELS[kind](value, base_dir=base_dir)
+        if kind in {"request", "context"}
+        else MODELS[kind](value)
+    )
 
 
-def load_request(value: Mapping[str, Any] | str | Request | RequestList, *, format: str | None = None) -> Request | RequestList:
-    """Load a Request or RequestList through the same strict value path."""
-    if isinstance(value, (Request, RequestList)):
-        return value
-    if isinstance(value, str):
-        # Parsing stays shared with load_value; inspect the plain parsed version
-        # once and then validate the selected envelope.
-        parsed = _parse_text(value, format)
-    else:
-        if format is not None:
-            raise ValueError("format is only valid for text input")
-        parsed = _plain(value)
-    if not isinstance(parsed, Mapping):
-        raise QueryError("invalid_query", "", "request must be an object")
-    version = parsed.get("api_version")
-    kind = "request-list" if (
-        isinstance(version, str) and version.startswith("cedarkit.request-list/")
-    ) or (version is None and "requests" in parsed) else "request"
-    return MODELS[kind](parsed)
+def load_request(value, *, format=None, base_dir=None):
+    return load_value(value, "request", format=format, base_dir=base_dir)
 
 
-def _parse_text(value: str, format: str | None) -> Any:
-    selected = format or ("json" if value.lstrip().startswith(("{", "[")) else "yaml")
-    try:
-        if selected == "json":
-            return json.loads(value, object_pairs_hook=_unique_pairs,
-                              parse_constant=lambda token: (_ for _ in ()).throw(
-                                  QueryError("invalid_query", "", f"non-finite JSON number: {token}")))
-        if selected == "yaml":
-            return yaml.load(value, Loader=_UniqueLoader)
-    except (json.JSONDecodeError, yaml.YAMLError) as exc:
-        raise QueryError("invalid_query", "", f"invalid {selected} input: {exc}") from exc
-    raise ValueError(f"unknown input format: {selected}")
-
-
-def dump_value(value: ProtocolValue, *, format: str = "json") -> str:
-    """Serialize a validated value without Python runtime objects."""
+def dump_value(value, *, format="json"):
     if not isinstance(value, ProtocolValue):
-        raise TypeError("dump_value requires a protocol value")
-    plain = value.to_dict()
-    if format == "json":
-        return json.dumps(plain, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":"))
-    if format == "yaml":
-        return yaml.safe_dump(plain, allow_unicode=True, sort_keys=True)
-    raise ValueError(f"unknown output format: {format}")
+        raise TypeError("dump_value requires a validated value")
+    return serialize(value, format)

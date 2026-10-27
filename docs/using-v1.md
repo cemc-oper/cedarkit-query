@@ -1,40 +1,88 @@
-# Use the grid query protocol
+# Use the current declarations and validators
 
-`cedarkit-query` 0.1.0 supplies versioned, JSON-compatible values and packaged JSON Schemas. It directly depends on `jsonschema` and `PyYAML`; it does not import reki, ecCodes, xarray, a catalog, or a data provider. Protocol version `v1` is independent of package version `0.1.0` and reki's CalVer version.
-
-Run this from the `cedarkit-query` project after `uv sync`:
+All files in examples are synthetic contract fixtures. The GRIB path is
+intentionally absent; product version oper-1, the data code and
+example.single-field interface are illustrative, not verified CEMC bindings.
+The tests consume these exact examples rather than a second hand-maintained
+copy.
 
 ```python
-from cedarkit_query import (
-    QueryError, dump_value, expand_request, get_schema, load_request,
-    normalize_request, parse_text_request,
-)
+from pathlib import Path
+from cedarkit_query import Request, expand_queries
 
-query = {
-    "api_version": "cedarkit.query/v1", "domain": "grid", "dataset": "grid",
-    "parameter": "cedarkit.t", "reference_time": "2026-08-30T00:00:00Z",
-    "lead_time": "PT24H", "vertical": {"type": "isobaric", "unit": "hPa", "values": 850},
-}
-request = load_request({"api_version": "cedarkit.request/v1", "action": "locate", "query": query})
-normalized = normalize_request(request)
-assert normalized.normalized_request.query.vertical["values"] == 85000
-assert len(expand_request(request).expanded_requests) == 1
-assert get_schema("request")["$id"] == "urn:cedarkit:query:request:v1"
-assert load_request(dump_value(request, format="yaml")) == request
-
-text_request = parse_text_request(
-    "LOCATE dataset=grid parameter=cedarkit.t reference_time=2026-08-30T00:00:00Z "
-    "lead_time=PT24H vertical.type=isobaric vertical.unit=hPa vertical.values=850"
-)
-assert normalize_request(text_request).normalized_request.query.to_dict() == normalized.normalized_request.query.to_dict()
-
-try:
-    load_request({"api_version": "cedarkit.request/v2", "action": "locate", "query": query})
-except QueryError as error:
-    assert error.code == "invalid_version"
-    print(error.to_dict())  # stable code, JSON Pointer path, message and context
+request = Request.load(Path("examples/request.json"))
+assert request.completeness == "required"
+assert len(expand_queries(request.queries)) == 2
+assert Path(request.source["path"]).is_absolute()
 ```
 
-`get_schema(kind)` loads one of the eight packaged Draft 2020-12 schemas. `load_request` accepts JSON, safe YAML, or Python mappings without changing the input. `parse_text_request` accepts the restricted syntax documented in [text-v1.md](text-v1.md). Use `RequestList` to keep independently paired queries; selector lists and ranges within one query form a bounded Cartesian product. See [protocol-v1.md](protocol-v1.md) for every field, response and error code, and [normalization-v1.md](normalization-v1.md) for units, expansion and identity. Positive and negative language-neutral vectors are in `tests/vectors/v1/`.
+This opens only the request file and packaged schemas. It does not open the
+referenced context/resources, discover files, decode grids, or fetch service
+values. The executor later loads actual resources and binds source scope.
 
-The package validates meaning and shape but makes no availability claim. reki binds a normalized query to a caller-selected catalog and executes supported resources; see its [public query guide](../../reki/doc/source/guide/public-query.md) and [CLI guide](../../reki/doc/source/guide/query-cli.md). Public local `list/locate/read` currently handle GRIB fields; NetCDF, GrADS and table readers retain their existing APIs. A syntactically valid condition can still receive `unsupported` when the selected provider cannot verify it.
+```python
+from cedarkit_query import load_value, prepare_queries, validate_resource_set
+
+parameters = load_value(Path("examples/parameters.json").read_text(), "parameters")
+mappings = load_value(Path("examples/mappings.json").read_text(), "mappings")
+catalog = load_value(Path("examples/catalog.json").read_text(), "catalog")
+resources = validate_resource_set(
+    parameters, [mappings], catalog,
+    products=[("example", "orig", "oper-1")],
+    interface_contracts={("example.single-field", 1)},
+)
+prepared = prepare_queries(request.queries, resources)
+assert prepared[0].parameter == "cedarkit.t2m"
+assert prepared[0].level == 2
+```
+
+The supplied contract set is an explicit synthetic test registry, not a lookup
+or service call. I06 will supply an actual finite registry. `prepare_queries`
+uses registered identities and declared constraints; it does not inspect the
+file to guess a more specific identity or product version.
+
+```python
+from cedarkit_query import combine_queries
+
+branches = combine_queries([
+    [dict(parameter="t", level_type="pressure", level=850, step="PT6H"),
+     dict(parameter="t", level_type="pressure", level=500, step="PT12H")],
+    [dict(level_type="pressure", level=500)],
+])
+assert len(branches) == 1
+assert branches[0]["query"]["step"] == "PT43200S"
+assert branches[0]["origins"] == [
+    {"step_index": 0, "query_index": 1},
+    {"step_index": 1, "query_index": 0},
+]
+```
+
+I05 should apply resource/fixed/scope validation to each newly submitted input,
+then combine its effective steps, preserving origins. The pure helper does not
+replace source lifecycle, runtime capabilities, numerical loading, report
+production, or first/one/all semantics. Invalid conditions cannot be hidden
+behind an earlier empty selection.
+
+## Ownership at the next boundaries
+
+- I03 reuses Parameters/Mappings, effective_parameters, normalize_fixed and
+  validate_resource_set from a migration **copy**. It owns SQLite constraints,
+  retired-ID occupancy, actual exports, content revisions and byte determinism.
+- I04 owns resource discovery/loading, actual byte SHA/version checks,
+  effective resource replacement, the populated catalog and exact context.
+  It supplies explicit product triples and, when available, an exact interface
+  registry to the shared validators; no global latest-version lookup exists.
+- I05/I06 produce QueryReport/QueryExplanation and throw public errors with
+  safe context. Normal first stopping, metadata failures, definition gaps,
+  actual zero matches and strict completeness stay distinct.
+- I08 migrates old imports and execution structures throughout reki/graph/
+  workflow/apps, including re-exporting new types at reki's public boundary.
+  This package intentionally provides no old-model aliases to keep those
+  consumers temporarily runnable.
+- I09/I10 handle real-product, online and cross-package installation evidence.
+  I02 package tests/isolated installation do not close their acceptance gaps.
+
+See protocol-v1.md, resources-v1.md and rules-v1.md for shape, error and
+semantic constraints. Negative/positive vectors under tests/vectors/v1 are
+shared across Python, JSON and YAML loaders; those tests use independent
+expected codes, paths and canonical values.

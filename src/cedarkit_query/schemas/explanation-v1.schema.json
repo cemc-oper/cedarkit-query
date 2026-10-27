@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:explanation:v1",
+  "title": "CedarKit explanation v1",
+  "type": "object",
+  "properties": {
+    "effective_queries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "query": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
+          },
+          "origins": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/origins"
+          }
+        },
+        "required": [
+          "index",
+          "query",
+          "origins"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "context": {
+      "$ref": "urn:cedarkit:query:common:v1#/$defs/report_context"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "input_queries": {
+            "type": "array",
+            "items": {
+              "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
+            },
+            "minItems": 1
+          },
+          "effective_queries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "query": {
+                  "$ref": "urn:cedarkit:query:common:v1#/$defs/query"
+                },
+                "origins": {
+                  "$ref": "urn:cedarkit:query:common:v1#/$defs/origins"
+                }
+              },
+              "required": [
+                "index",
+                "query",
+                "origins"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "enum": [
+                    "normalized",
+                    "constrained",
+                    "derived",
+                    "narrowed",
+                    "pruned",
+                    "merged"
+                  ]
+                },
+                "origins": {
+                  "$ref": "urn:cedarkit:query:common:v1#/$defs/origins"
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+                }
+              },
+              "required": [
+                "code",
+                "origins",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0
+          }
+        },
+        "required": [
+          "index",
+          "input_queries",
+          "effective_queries",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "expansion_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "expected_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/check"
+          },
+          "minItems": 0
+        },
+        "translations": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:cedarkit:query:common:v1#/$defs/translation_plan"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "expansion_count",
+        "expected_count",
+        "checks",
+        "translations"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "effective_queries",
+    "context",
+    "steps",
+    "analysis"
+  ],
+  "additionalProperties": false
+}

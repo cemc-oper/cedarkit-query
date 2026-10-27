@@ -1,220 +1,384 @@
-"""Boundary and identity tests for pure query normalization."""
-
-import copy
-import json
-from pathlib import Path
-
 import pytest
 
 from cedarkit_query import (
-    AliasSnapshot,
-    Binding,
-    DataReference,
+    Query,
     QueryError,
-    Transform,
-    binding_identity,
-    expand_request,
-    normalize_request,
+    combine_queries,
+    constrain_query,
+    expand_queries,
+    intersect_queries,
     query_identity,
-    resource_identity,
-    transform_identity,
 )
 
-NORMALIZATION_VECTORS = json.loads((Path(__file__).parent / "vectors/v1/normalization.json").read_text())
+
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        (
+            {"level_type": "pressure", "level": 850},
+            {"level_type": "pressure", "level": 85000, "level_unit": "Pa"},
+        ),
+        (
+            {
+                "level_type": "depth_below_land",
+                "level_unit": "cm",
+                "layer": {"bottom": 40, "top": 10},
+            },
+            {
+                "layer": {
+                    "bottom": {"type": "depth_below_land", "value": 0.4, "unit": "m"},
+                    "top": {"type": "depth_below_land", "value": 10, "unit": "cm"},
+                }
+            },
+        ),
+        ({"time": "2026-10-27T08:00:00+08:00"}, {"time": "2026-10-27T00:00:00Z"}),
+        ({"step": "P1D"}, {"step": "PT24H"}),
+        (
+            {"level_type": "pressure", "level": [500, 850, 500]},
+            {"level_type": "pressure", "level": [850, 500]},
+        ),
+        ({"member": [1]}, {"member": 1}),
+        (
+            {"step": {"range": {"start": "PT0H", "end": "PT12H", "every": "PT6H"}}},
+            {"step": ["PT0H", "PT6H", "PT12H"]},
+        ),
+        (
+            {"time": "2026-10-27T00:00:00Z", "step": "PT6H"},
+            {"time": "2026-10-27T00:00:00Z", "valid_time": "2026-10-27T06:00:00Z"},
+        ),
+    ],
+)
+def test_equivalent_identity(left, right):
+    assert query_identity(left) == query_identity(right)
 
 
-def request(**query):
-    return {"api_version": "cedarkit.request/v1", "action": "locate",
-            "query": {"api_version": "cedarkit.query/v1", "domain": "grid",
-                      "dataset": "example.grid", "parameter": "cedarkit.t",
-                      "reference_time": "2026-08-30T00:00:00Z", "lead_time": "PT24H"} | query}
-
-
-@pytest.mark.parametrize("case", NORMALIZATION_VECTORS, ids=lambda case: case["name"])
-def test_language_neutral_normalization_vectors(case):
-    prepared = normalize_request(case["input"], catalog_snapshot=case.get("catalog_snapshot"),
-                                 vocabulary_snapshot=case.get("vocabulary_snapshot"))
-    assert prepared.normalized_request.query.to_dict() == case["normalized_query"]
-    assert len(expand_request(prepared).expanded_requests) == case["expanded_count"]
-    assert query_identity(prepared) == case["query_id"]
-
-
-def test_time_duration_and_valid_time_are_canonical_and_redundant():
-    a = request(reference_time="2026-08-30T08:00:00+08:00", lead_time="P1D",
-                valid_time="2026-08-31T08:00:00+08:00")
-    b = request()
-    prepared = normalize_request(a)
-    assert prepared.raw_request.query.valid_time == "2026-08-31T08:00:00+08:00"
-    assert prepared.normalized_request.query.reference_time == "2026-08-30T00:00:00Z"
-    assert prepared.normalized_request.query.lead_time == "PT86400S"
-    assert "valid_time" not in prepared.normalized_request.query.to_dict()
-    assert query_identity(prepared) == query_identity(b)
-    assert a["query"]["reference_time"] == "2026-08-30T08:00:00+08:00"
-
-
-def test_vertical_units_and_set_order_are_identity_equivalent():
-    a = request(vertical={"type": "isobaric", "unit": "hPa", "values": [850, 500, 850]})
-    b = request(vertical={"type": "isobaric", "unit": "Pa", "values": [50000, 85000]})
-    assert normalize_request(a).normalized_request.query.vertical["unit"] == "Pa"
-    assert query_identity(a) == query_identity(b)
-    assert len(expand_request(a).expanded_requests) == 2
-
-
-def test_statistic_window_does_not_follow_lead_time():
-    instant = request(statistic={"kind": "instant"})
-    accum = request(statistic={"kind": "accum", "window": "P1D"})
-    normalized = normalize_request(accum).normalized_request
-    assert normalized.query.statistic["window"] == "PT86400S"
-    assert query_identity(instant) != query_identity(accum)
-
-
-def test_alias_resolution_requires_explicit_snapshots_and_records_versions():
-    item = request(dataset={"namespace": "catalog", "name": "gfs"},
-                   parameter={"namespace": "cmadaas", "name": "TEM"})
-    catalog = AliasSnapshot("catalog-a", {"catalog": {"gfs": "example.grid"}})
-    vocabulary = AliasSnapshot("vocab-a", {"cmadaas": {"TEM": "cedarkit.t"}})
-    prepared = normalize_request(item, catalog_snapshot=catalog, vocabulary_snapshot=vocabulary)
-    assert (prepared.catalog_version, prepared.vocabulary_version) == ("catalog-a", "vocab-a")
-    assert query_identity(prepared) == query_identity(request())
-    with pytest.raises(QueryError) as caught:
-        normalize_request(item)
-    assert (caught.value.code, caught.value.path) == ("unknown_dataset", "/query/dataset")
-    changed_version = AliasSnapshot("catalog-b", {"catalog": {"gfs": "example.grid"}})
-    assert query_identity(item, catalog_snapshot=changed_version, vocabulary_snapshot=vocabulary) == query_identity(prepared)
-
-
-def test_unknown_and_ambiguous_aliases_fail_without_guessing():
-    item = request(parameter={"namespace": "cmadaas", "name": "PRE"})
-    with pytest.raises(QueryError) as missing:
-        normalize_request(item, vocabulary_snapshot=AliasSnapshot("v", {}))
-    assert missing.value.code == "unknown_parameter"
-    with pytest.raises(QueryError) as ambiguous:
-        normalize_request(item, vocabulary_snapshot=AliasSnapshot(
-            "v", {"cmadaas": {"PRE": ("cedarkit.p1", "cedarkit.p2")}}))
-    assert ambiguous.value.code == "ambiguous_mapping"
-
-
-@pytest.mark.parametrize("closed,expected", [
-    ("both", ["PT0S", "PT21600S", "PT43200S"]),
-    ("left", ["PT0S", "PT21600S"]),
-    ("right", ["PT21600S", "PT43200S"]),
-    ("neither", ["PT21600S"]),
-])
-def test_range_endpoint_rules(closed, expected):
-    item = request(lead_time={"start": "PT0H", "stop": "PT12H", "step": "PT6H", "closed": closed})
-    normalized = normalize_request(item).normalized_request.query.to_dict()
-    assert normalized["lead_time"] == (expected[0] if len(expected) == 1 else expected)
-
-
-def test_explicit_list_and_range_have_same_identity():
-    ranged = request(lead_time={"start": "PT0H", "stop": "PT12H", "step": "PT6H", "closed": "both"})
-    listed = request(lead_time=["PT12H", "PT0S", "PT6H", "PT6H"])
-    assert query_identity(ranged) == query_identity(listed)
-
-
-def test_reference_time_and_numeric_level_ranges_use_same_endpoint_rules():
-    item = request(
-        reference_time={"start": "2026-08-30T08:00:00+08:00",
-                        "stop": "2026-08-30T12:00:00Z", "step": "PT6H", "closed": "right"},
-        vertical={"type": "isobaric", "unit": "hPa",
-                  "values": {"start": 500, "stop": 700, "step": 100, "closed": "both"}},
+def test_identity_context_is_semantic_and_native_is_retained():
+    q = {"parameter": "t"}
+    assert query_identity(q, context={"scope": {"member": 0}}) != query_identity(
+        q, context={"scope": {"member": 1}}
     )
-    normalized = normalize_request(item).normalized_request.query.to_dict()
-    assert normalized["reference_time"] == ["2026-08-30T06:00:00Z", "2026-08-30T12:00:00Z"]
-    assert normalized["vertical"]["values"] == [50000, 60000, 70000]
-    assert len(expand_request(item).expanded_requests) == 6
+    assert query_identity(q) != query_identity(
+        {**q, "native": {"grib": {"edition": 2}}}
+    )
 
 
-def test_cartesian_query_and_paired_request_list_differ():
-    cartesian = request(parameter=["cedarkit.t", "cedarkit.h"], lead_time=["PT0H", "PT6H"])
-    paired = {"api_version": "cedarkit.request-list/v1", "requests": [
-        request(parameter="cedarkit.t", lead_time="PT0H"),
-        request(parameter="cedarkit.h", lead_time="PT6H"),
-    ]}
-    product = expand_request(cartesian)
-    pairs = expand_request(paired)
-    assert len(product.expanded_requests) == 4
-    assert len(pairs.expanded_requests) == 2
-    assert [(item.query.parameter, item.query.lead_time) for item in pairs.expanded_requests] == [
-        ("cedarkit.t", "PT0S"), ("cedarkit.h", "PT21600S")]
+def test_pairing_and_time_relations():
+    q = {
+        "time": ["2026-10-27T00:00:00Z", "2026-10-27T06:00:00Z"],
+        "step": ["PT6H", "PT12H"],
+        "valid_time": "2026-10-27T12:00:00Z",
+    }
+    rows = [q.to_dict() for q in expand_queries([q], max_expansion=2)]
+    assert {(r["time"], r["step"]) for r in rows} == {
+        ("2026-10-27T00:00:00Z", "PT43200S"),
+        ("2026-10-27T06:00:00Z", "PT21600S"),
+    }
+    with pytest.raises(QueryError):
+        expand_queries([{**q, "step": ["PT6H", "PT12H", "PT24H"]}])
+    with pytest.raises(QueryError):
+        Query(
+            {
+                "time": "2026-10-27T00:00:00Z",
+                "step": "PT6H",
+                "valid_time": "2026-10-27T12:00:00Z",
+            }
+        )
 
 
-def test_expand_bounds_before_any_provider_access():
-    item = request(parameter=["p1", "p2"])
-    item["options"] = {"max_expansion": 1}
-    with pytest.raises(QueryError) as caught:
-        expand_request(item)
-    assert caught.value.code == "expansion_limit"
-    huge = request(lead_time={"start": "PT0S", "stop": "PT4096S", "step": "PT1S", "closed": "both"})
-    with pytest.raises(QueryError) as caught:
-        normalize_request(huge)
-    assert caught.value.code == "expansion_limit"
+def test_nanosecond_and_subsecond_precision():
+    rows = expand_queries(
+        [{"time": "2026-10-27T08:00:00.123456789+08:00", "step": "PT0.000000001S"}]
+    )
+    assert rows[0].valid_time == "2026-10-27T00:00:00.12345679Z"
+    with pytest.raises(QueryError):
+        Query(time="2026-10-27T00:00:00.1234567891Z")
 
 
-def test_zero_or_one_rejects_multiple_expanded_fields():
-    item = request(parameter=["p1", "p2"])
-    item["policy"] = {"cardinality": "zero_or_one", "missing": "partial"}
-    with pytest.raises(QueryError) as caught:
-        expand_request(item)
-    assert caught.value.path == "/policy/cardinality"
+def test_count_legal_effective_combinations_not_raw_time_cartesian():
+    q = {
+        "time": {
+            "range": {
+                "start": "2026-10-27T00:00:00Z",
+                "end": "2026-10-27T06:00:00Z",
+                "every": "PT1H",
+            }
+        },
+        "step": {"range": {"start": "PT0H", "end": "PT6H", "every": "PT1H"}},
+        "valid_time": "2026-10-27T06:00:00Z",
+    }
+    assert len(expand_queries([q], max_expansion=7)) == 7
+    with pytest.raises(QueryError) as e:
+        expand_queries([q], max_expansion=6)
+    assert e.value.code == "expansion_limit_exceeded"
+    assert e.value.context["limit"] == 6 and e.value.context["count_lower_bound"] == 7
 
 
-def test_invalid_times_windows_units_and_bounds_fail():
-    examples = [
-        (request(valid_time="2026-08-30T12:00:00Z"), "/query/valid_time"),
-        (request(vertical={"type": "isobaric", "unit": "m", "values": 500}), "/query/vertical/unit"),
-        (request(vertical={"type": "isobaric", "unit": "hPa", "bounds": [{"lower": 850, "upper": 500}]}),
-         "/query/vertical/bounds/0"),
-        (request(coverage={"crs": "EPSG:4326", "bbox": [140, 10, 70, 60], "relation": "intersects"}),
-         "/query/coverage/bbox"),
+def test_expansion_union_dedup_limits_and_continuous_filters():
+    q = {
+        "parameter": "t",
+        "level_type": "pressure",
+        "level": [850, 500],
+        "step": {"range": {"start": "PT0H", "end": "PT24H", "every": "PT6H"}},
+    }
+    assert len(expand_queries([q, q], max_expansion=10)) == 10
+    with pytest.raises(QueryError):
+        expand_queries([q], max_expansion=9)
+    assert (
+        len(
+            expand_queries(
+                [
+                    {
+                        "level_type": "pressure",
+                        "level": {"range": {"start": 1, "end": 1000000}},
+                    }
+                ],
+                max_expansion=1,
+            )
+        )
+        == 1
+    )
+    values = [
+        x.member
+        for x in expand_queries(
+            [{"member": {"range": {"start": 0, "end": 10, "every": 3}}}]
+        )
     ]
-    for item, path in examples:
-        with pytest.raises(QueryError) as caught:
-            normalize_request(item)
-        assert caught.value.path == path
+    assert sorted(values) == [0, 3, 6, 9]
+    with pytest.raises(QueryError):
+        expand_queries(
+            [{"member": {"range": {"start": 0, "end": 1000000, "every": 1}}}],
+            max_expansion=3,
+        )
+    for bad in [0, -1, True, 1.0, "3", None]:
+        with pytest.raises(QueryError) as e:
+            expand_queries([{}], max_expansion=bad)
+        assert e.value.code == "invalid_config"
 
 
-def test_transform_binding_and_resource_identities_are_independent():
-    query = request()
-    crop = Transform({"api_version": "cedarkit.transform/v1", "operations": [
-        {"kind": "crop", "bbox": [70, 10, 140, 60]}, {"kind": "unit", "target": "K"}]})
-    reversed_transform = Transform({"api_version": "cedarkit.transform/v1", "operations": [
-        {"kind": "unit", "target": "K"}, {"kind": "crop", "bbox": [70, 10, 140, 60]}]})
-    assert transform_identity(crop) != transform_identity(reversed_transform)
-    first = Binding({"api_version": "cedarkit.binding/v1", "dataset": "example.grid", "kind": "local",
-                     "source_id": "s", "catalog_version": "c", "locator": {"resolver": "file-pattern",
-                                                                        "root": "/a", "pattern": "*.grib2"}})
-    second = Binding({**first.to_dict(), "locator": {"resolver": "file-pattern", "root": "/b", "pattern": "*.grib2"}})
-    assert binding_identity(first) != binding_identity(second)
-    reference = DataReference({"api_version": "cedarkit.data-reference/v1", "dataset": "example.grid",
-                               "field_identity": {"parameter": "cedarkit.t", "reference_time": "2026-08-30T00:00:00Z",
-                                                  "lead_time": "PT24H"},
-                               "binding_id": binding_identity(first),
-                               "resource": {"kind": "local", "locator": "/a/x.grib2",
-                                            "fingerprint": {"size": 12, "mtime_ns": 1, "device": 2, "inode": 3}},
-                               "verification": "path_exists"})
-    changed = reference.to_dict()
-    changed["resource"]["fingerprint"]["mtime_ns"] = 2
-    assert resource_identity(reference) != resource_identity(DataReference(changed))
-    assert query_identity(query) == query_identity(copy.deepcopy(query))
-    assert query_identity(query["query"]) == query_identity(query)
-    altered_request = copy.deepcopy(query)
-    altered_request["action"] = "read"
-    altered_request["policy"] = {"cardinality": "all"}
-    altered_request["transforms"] = crop.to_dict()
-    assert query_identity(altered_request) == query_identity(query)
+def test_layer_pairs_and_native_selector_expansion():
+    rows = expand_queries(
+        [
+            {
+                "level_type": "depth_below_land",
+                "layer": [{"bottom": 0.1, "top": 0}, {"bottom": 0.4, "top": 0.1}],
+                "step": ["PT6H", "PT12H"],
+            }
+        ]
+    )
+    assert len(rows) == 4
+    assert {(r.layer["bottom"]["value"], r.layer["top"]["value"]) for r in rows} == {
+        (0.1, 0),
+        (0.4, 0.1),
+    }
+    rows = expand_queries(
+        [
+            {
+                "native": {
+                    "grib": {
+                        "parameterNumber": [0, 1],
+                        "typeOfFirstFixedSurface": [100, 103],
+                    }
+                }
+            }
+        ]
+    )
+    assert len(rows) == 4 and all("parameter" not in r.to_dict() for r in rows)
 
 
-def test_remote_resource_needs_version_before_stable_identity():
-    remote = {"api_version": "cedarkit.data-reference/v1", "dataset": "example.grid",
-              "field_identity": {"parameter": "cedarkit.t", "reference_time": "2026-08-30T00:00:00Z",
-                                 "lead_time": "PT24H"},
-              "binding_id": "sha256:" + "a" * 64,
-              "resource": {"kind": "cmadaas", "locator": "CODE"},
-              "verification": "remote_unverified"}
-    with pytest.raises(QueryError) as caught:
-        resource_identity(DataReference(remote))
-    assert (caught.value.code, caught.value.path) == ("availability_unknown", "/resource/version")
-    versioned = copy.deepcopy(remote)
-    versioned["resource"]["version"] = "response-1"
-    assert resource_identity(DataReference(versioned)).startswith("sha256:")
+def test_chain_intersection_and_origins():
+    first = [
+        {"parameter": "t", "level_type": "pressure", "level": 850, "step": "PT6H"},
+        {"parameter": "t", "level_type": "pressure", "level": 500, "step": "PT12H"},
+    ]
+    branches = combine_queries(
+        [first, [{"level_type": "pressure", "level": 500}]], max_expansion=2
+    )
+    assert len(branches) == 1 and branches[0]["query"]["step"] == "PT43200S"
+    assert branches[0]["origins"] == [
+        {"step_index": 0, "query_index": 1},
+        {"step_index": 1, "query_index": 0},
+    ]
+    assert (
+        combine_queries(
+            [
+                [{"level_type": "pressure", "level": 850}],
+                [{"level_type": "pressure", "level": 500}],
+            ]
+        )
+        == ()
+    )
+    with pytest.raises(QueryError):
+        combine_queries([[{"level": 1}], [{"level": 2}], [{"level": None}]])
+    with pytest.raises(QueryError):
+        combine_queries(
+            [
+                [{"level_type": "pressure", "level": [850, 500]}],
+                [{"level_type": "pressure", "level": 850}],
+            ],
+            max_expansion=1,
+        )
+    with pytest.raises(QueryError) as e:
+        combine_queries(
+            [[{"level": 1}], [{"level": 2}], [{"member": 1}]], scope={"member": 0}
+        )
+    assert e.value.code == "constraint_conflict"
+
+
+@pytest.mark.parametrize(
+    "a,b,expected",
+    [
+        (
+            {"range": {"start": 0, "end": 30, "every": 4}},
+            {"range": {"start": 2, "end": 30, "every": 6}},
+            [8, 20],
+        ),
+        (
+            {"range": {"start": 0, "end": 1, "every": 0.2}},
+            {"range": {"start": 0.1, "end": 1, "every": 0.3}},
+            [0.4, 1],
+        ),
+        ({"range": {"start": 0, "end": 1000000, "every": 2}}, 3, []),
+    ],
+)
+def test_range_intersections_are_pure_and_exact(a, b, expected):
+    q = intersect_queries(
+        {"level_type": "height_above_ground", "level": a},
+        {"level_type": "height_above_ground", "level": b},
+    )
+    assert (
+        [] if q is None else sorted(r.level for r in expand_queries([q]))
+    ) == expected
+
+
+def test_fixed_definition_requires_every_explicit_choice():
+    fixed = {"level_type": "height_above_ground", "level": 2}
+    with pytest.raises(QueryError) as e:
+        constrain_query({"level": [2, 10]}, fixed)
+    assert e.value.code == "constraint_conflict"
+    q = constrain_query({"level": {"range": {"start": 0, "end": 10}}}, fixed)
+    assert q.level == 2
+    with pytest.raises(QueryError):
+        constrain_query(
+            {"level": {"range": {"start": 0, "end": 10, "every": 2}}}, fixed
+        )
+    with pytest.raises(QueryError):
+        constrain_query(
+            {
+                "layer": {
+                    "bottom": {"type": "surface"},
+                    "top": {"type": "atmosphere_top"},
+                }
+            },
+            fixed,
+        )
+
+
+def test_cemc_member_role_pairs_and_overrides():
+    assert (
+        len(
+            expand_queries(
+                [{"member": [0, 1, 30], "member_role": ["control", "perturbation"]}],
+                cemc=True,
+            )
+        )
+        == 3
+    )
+    with pytest.raises(QueryError):
+        expand_queries([{"member": 1, "member_role": "control"}], cemc=True)
+    assert (
+        expand_queries(
+            [{"member": 1, "member_role": "control"}],
+            member_roles={"1": "control"},
+            cemc=True,
+        )[0].member_role
+        == "control"
+    )
+
+
+def test_time_join_clips_inferred_negative_durations_and_unaligned_range_end():
+    query = {
+        "time": "2026-10-27T00:00:00Z",
+        "step": ["PT3H", "PT6H"],
+        "valid_time": {
+            "range": {"start": "2026-10-26T23:00:00Z", "end": "2026-10-27T06:00:00Z"}
+        },
+    }
+    assert sorted(q.step for q in expand_queries([query])) == ["PT10800S", "PT21600S"]
+    query = {
+        "time": {
+            "range": {
+                "start": "2026-10-27T00:00:00Z",
+                "end": "2026-10-27T10:00:00Z",
+                "every": "PT3H",
+            }
+        },
+        "step": {"range": {"start": "PT0H", "end": "PT10H"}},
+        "valid_time": "2026-10-27T10:00:00Z",
+    }
+    assert sorted(q.step for q in expand_queries([query])) == sorted(
+        ["PT14400S", "PT25200S", "PT3600S", "PT36000S"]
+    )
+
+
+def test_large_bound_checks_do_not_enumerate_unused_domains():
+    fixed = {"member": {"range": {"start": 0, "end": 1000000000000, "every": 2}}}
+    q = constrain_query(fixed, fixed)
+    with pytest.raises(QueryError) as e:
+        expand_queries([q], max_expansion=3)
+    assert e.value.code == "expansion_limit_exceeded"
+    q = {
+        "time": {
+            "range": {
+                "start": "0001-01-01T00:00:00Z",
+                "end": "9999-12-31T23:59:59Z",
+                "every": "PT1S",
+            }
+        },
+        "step": {"range": {"start": "PT0H", "end": "PT1H"}},
+        "valid_time": "9999-12-31T23:59:59Z",
+    }
+    with pytest.raises(QueryError) as e:
+        expand_queries([q])
+    assert (
+        e.value.code == "invalid_query"
+    )  # almost every explicit time is unparticipating
+
+
+def test_native_bound_does_not_drop_explicit_choices():
+    with pytest.raises(QueryError) as e:
+        constrain_query(
+            {"native": {"grib": {"edition": [1, 2]}}},
+            {"native": {"grib": {"edition": 2}}},
+        )
+    assert e.value.code == "constraint_conflict"
+
+
+def test_sub_nanosecond_duration_is_rejected_without_rounding():
+    with pytest.raises(QueryError):
+        Query(step="PT0.0000000001S")
+
+
+def test_later_invalid_time_query_cannot_be_hidden_by_empty_selection():
+    with pytest.raises(QueryError):
+        combine_queries(
+            [
+                [{"parameter": "t"}],
+                [{"parameter": "u"}],
+                [
+                    {
+                        "time": ["2026-10-27T00:00:00Z", "2026-10-27T06:00:00Z"],
+                        "step": "PT6H",
+                        "valid_time": "2026-10-27T06:00:00Z",
+                    }
+                ],
+            ]
+        )
+
+
+def test_limit_can_be_configured_above_the_library_default():
+    q = {"member": {"range": {"start": 0, "end": 10000, "every": 1}}}
+    assert len(expand_queries([q], max_expansion=10001)) == 10001
+    with pytest.raises(QueryError) as e:
+        expand_queries([q])
+    assert e.value.context["limit"] == 10000
+    assert e.value.context["origins"] == ({"step_index": 0, "query_index": 0},)

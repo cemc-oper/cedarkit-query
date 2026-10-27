@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cedarkit:query:context:v1",
+  "title": "CedarKit context v1",
+  "$ref": "urn:cedarkit:query:common:v1#/$defs/context"
+}

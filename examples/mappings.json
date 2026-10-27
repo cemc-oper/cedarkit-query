@@ -1,0 +1,39 @@
+{
+  "api_version": "cedarkit.mappings/v1",
+  "id": "test.grib",
+  "version": "1",
+  "backend": "grib2",
+  "mappings": [
+    {
+      "id": "temperature",
+      "parameter_id": "cedarkit.t",
+      "backend": "grib2",
+      "applies_to": {
+        "dataset": "example",
+        "product": "orig",
+        "product_version": "oper-1"
+      },
+      "when": {},
+      "native": {
+        "match": {
+          "discipline": 0,
+          "parameterCategory": 0,
+          "parameterNumber": 0
+        },
+        "translate": {
+          "vertical": {
+            "rule": "grib.fixed_surfaces"
+          },
+          "time": {
+            "rule": "grib.time"
+          },
+          "unit": {
+            "rule": "common.value_unit"
+          }
+        }
+      },
+      "evidence": []
+    }
+  ],
+  "tables": []
+}
