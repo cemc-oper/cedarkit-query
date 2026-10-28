@@ -1,5 +1,6 @@
 """CedarKit's single query/request and resource contracts. No business I/O."""
 
+from .applicability import analyze_product_mappings
 from .errors import CompletenessError, QueryError, SourceError
 from .model import (
     Catalog,
@@ -76,4 +77,5 @@ __all__ = [
     "validate_rule",
     "validate_resource_set",
     "validate_product",
+    "analyze_product_mappings",
 ]

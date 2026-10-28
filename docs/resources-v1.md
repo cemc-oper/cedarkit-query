@@ -156,3 +156,20 @@ existing descendant identity is selected only when its fixed meaning is
 already implied by the full explicit selection; a wide query remains wide.
 No new ID is synthesized. Further runtime product/native ambiguity, coverage,
 source execution, and output interpretation belong to I04–I06.
+
+I04 also uses `analyze_product_mappings(resources, dataset, product, version,
+scope=...)` for static composition. It resolves each paired provides branch
+through the shared parameter definitions, applies the effective configuration
+scope, and checks exact parameter IDs, product identity selectors, applies_to.time
+and when together. Parent mappings are not implicitly inherited. It retains the
+original provides index rather than crossing conditions between branches.
+
+The immutable result contains row applicability and per-provided-parameter
+coverage for each explicitly supplied backend resource. `covered` is a static
+predicate proof, not a native translation or availability claim. `missing` and
+`partial` identify definite gaps; `undetermined` retains a continuous-union proof
+gap, an unspecified parameter domain, or exhaustion of the internal 10000-cell
+proof budget. Large compact domains are accepted when one predicate covers them;
+this analysis budget is independent of execution max_expansion and does not
+reject large configured scopes. Full native translation, interface association,
+member-role interpretation and source evidence remain I06 responsibilities.
