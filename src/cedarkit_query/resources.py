@@ -743,35 +743,19 @@ def validate_resource_set(
                             "/mappings/" + m["id"] + "/native/translate/vertical",
                             "no table row is compatible with the fixed parameter conditions",
                         )
-            all_mappings.append((m, tables))
-    for i, (a, atables) in enumerate(all_mappings):
-        for b, btables in all_mappings[i + 1 :]:
+            all_mappings.append((m, tables, _intersect(conditions, when)))
+    for i, (a, atables, aconditions) in enumerate(all_mappings):
+        for b, btables, bconditions in all_mappings[i + 1 :]:
             if (
                 a["backend"] != b["backend"]
                 or _intersect(_normalize(a["applies_to"]), _normalize(b["applies_to"]))
                 is None
-                or _intersect(_normalize(a["when"]), _normalize(b["when"])) is None
+                or _intersect(aconditions, bconditions) is None
                 or _intersect(a["native"]["match"], b["native"]["match"], native=True)
                 is None
             ):
                 continue
             pa, pb = a["parameter_id"], b["parameter_id"]
-            if (
-                _intersect(
-                    {
-                        k: v
-                        for k, v in effective[pa]["fixed_conditions"].items()
-                        if k != "statistics"
-                    },
-                    {
-                        k: v
-                        for k, v in effective[pb]["fixed_conditions"].items()
-                        if k != "statistics"
-                    },
-                )
-                is None
-            ):
-                continue
             ta = {
                 k: validate_rule(v, backend=a["backend"], responsibility=k)
                 for k, v in a["native"].get("translate", {}).items()

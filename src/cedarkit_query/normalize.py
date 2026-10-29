@@ -52,6 +52,10 @@ _UNIT_ALIASES = {
     "Celsius": "degC",
     "degrees_Celsius": "degC",
     "percent": "%",
+    "m s**-1": "m/s",
+    "m s-1": "m/s",
+    "kg kg**-1": "kg/kg",
+    "kg kg-1": "kg/kg",
 }
 
 
