@@ -56,6 +56,8 @@ _UNIT_ALIASES = {
     "m s-1": "m/s",
     "kg kg**-1": "kg/kg",
     "kg kg-1": "kg/kg",
+    "kg m**-2": "kg/m2",
+    "kg m-2": "kg/m2",
 }
 
 
