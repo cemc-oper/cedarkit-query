@@ -58,6 +58,10 @@ _UNIT_ALIASES = {
     "kg kg-1": "kg/kg",
     "kg m**-2": "kg/m2",
     "kg m-2": "kg/m2",
+    "W m**-2": "W/m2",
+    "W m-2": "W/m2",
+    "J m**-2": "J/m2",
+    "J m-2": "J/m2",
 }
 
 
