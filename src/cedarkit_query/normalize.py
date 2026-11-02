@@ -52,6 +52,8 @@ _UNIT_ALIASES = {
     "Celsius": "degC",
     "degrees_Celsius": "degC",
     "percent": "%",
+    "gpm": "Gpm",
+    "s**-1": "s-1",
     "m s**-1": "m/s",
     "m s-1": "m/s",
     "kg kg**-1": "kg/kg",
