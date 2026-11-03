@@ -12,6 +12,8 @@ from cedarkit_query import QueryError
     "literal,target",
     [
         ("m s**-1", "m/s"),
+        ("m**2 s**-2", "J/kg"),
+        ("J kg-1", "m2/s2"),
         ("m s-1", "m/s"),
         ("kg kg**-1", "kg/kg"),
         ("kg kg-1", "kg/kg"),

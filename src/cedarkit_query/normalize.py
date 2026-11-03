@@ -64,6 +64,8 @@ _UNIT_ALIASES = {
     "W m-2": "W/m2",
     "J m**-2": "J/m2",
     "J m-2": "J/m2",
+    "m**2 s**-2": "m2/s2",
+    "J kg-1": "J/kg",
 }
 
 
@@ -161,6 +163,8 @@ def unit_info(unit):
         "degC": ("temperature", "1", "273.15"),
         "%": ("ratio", ".01", "0"),
         "1": ("ratio", "1", "0"),
+        "m2/s2": ("specific_energy", "1", "0"),
+        "J/kg": ("specific_energy", "1", "0"),
     }
     dimension, factor, offset = known.get(unit, (unit, "1", "0"))
     return dimension, Decimal(factor), Decimal(offset)
