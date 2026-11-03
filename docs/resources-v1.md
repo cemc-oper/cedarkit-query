@@ -38,7 +38,8 @@ outer ensemble statistics.
 Time operations: instantaneous (no period), accumulation, mean, minimum,
 maximum. Non-instantaneous concrete products require a period. Trailing uses
 `{kind: trailing, duration: PT24H}` with positive duration. Since-initialization
-uses `{kind: since_initialization}` for accumulation, with no duration. A local
+uses `{kind: since_initialization}` for accumulation, minimum, or maximum over
+the interval from reference time to valid time, with no fixed duration. A local
 child may provide only period when its parent supplies over/operation.
 
 Ensemble operations: mean, standard_deviation, minimum, maximum, probability,

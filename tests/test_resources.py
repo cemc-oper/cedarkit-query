@@ -683,6 +683,16 @@ def test_local_statistical_contradictions_do_not_wait_for_inheritance(stats):
         normalize_statistics(stats)
 
 
+@pytest.mark.parametrize("operation", ["accumulation", "minimum", "maximum"])
+def test_since_initialization_time_period_accepts_accumulation_and_extrema(operation):
+    stats = {
+        "over": "time",
+        "operation": operation,
+        "period": {"kind": "since_initialization"},
+    }
+    assert normalize_statistics(stats) == stats
+
+
 def test_source_unit_and_business_unit_do_not_default_each_other(parameters, mappings):
     mappings["mappings"][0]["native"]["translate"]["unit"]["config"] = {
         "source_unit": "degC"

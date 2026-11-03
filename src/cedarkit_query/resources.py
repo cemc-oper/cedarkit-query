@@ -210,10 +210,13 @@ def normalize_statistics(stats, path="", *, complete=False):
         forbidden.add("event")
     if operation is not None and operation != "quantile":
         forbidden.add("quantile")
-    if stats.get("period", {}).get(
-        "kind"
-    ) == "since_initialization" and operation not in {None, "accumulation"}:
-        _error(path + "/period", "since_initialization is an accumulation period")
+    if (
+        stats.get("period", {}).get("kind") == "since_initialization"
+        and operation not in {None, "accumulation", "minimum", "maximum"}
+    ):
+        _error(
+            path + "/period", "since_initialization requires accumulation or an extremum"
+        )
     if over == "time":
         if operation in {"standard_deviation", "probability", "quantile"}:
             _error(path + "/operation", "operation is not a time statistic")
