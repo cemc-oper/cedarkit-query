@@ -1,5 +1,4 @@
 import pytest
-
 from cedarkit_query import Parameters, QueryError, prepare_queries
 from cedarkit_query.resources import effective_parameters
 
@@ -47,3 +46,24 @@ def test_invalid_parameter_inheritance_is_rejected(rows, path):
         Parameters(snapshot(rows))
     assert caught.value.code == "invalid_config"
     assert caught.value.path.endswith(path)
+
+
+def test_ensemble_statistic_is_a_named_product_not_an_individual_member():
+    statistic = {
+        "parameter_id": "test.ensemble_temperature",
+        "name": "ensemble_temperature",
+        "unit": "K",
+        "fixed_conditions": {
+            "statistics": {
+                "over": "ensemble",
+                "operation": "mean",
+                "of": {"parameter_id": "cedarkit.t"},
+            },
+        },
+    }
+    index = effective_parameters(snapshot([BASE, statistic]))
+    (query,) = prepare_queries([{"parameter": statistic["name"]}], index)
+    assert query.to_dict() == {"parameter": statistic["parameter_id"]}
+    with pytest.raises(QueryError) as caught:
+        prepare_queries([{"parameter": statistic["name"], "member": 0}], index)
+    assert (caught.value.code, caught.value.path) == ("constraint_conflict", "/member")

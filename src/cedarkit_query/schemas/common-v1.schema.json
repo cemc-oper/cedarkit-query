@@ -1057,6 +1057,16 @@
               "type": "string",
               "minLength": 1,
               "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+            },
+            "product": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+            },
+            "product_version": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
             }
           },
           "required": [],
@@ -1218,8 +1228,7 @@
                 ]
               },
               "scope": {
-                "type": "object",
-                "additionalProperties": false
+                "$ref": "urn:cedarkit:query:common:v1#/$defs/applies"
               },
               "candidate_filter": {
                 "type": "object",
@@ -1391,8 +1400,7 @@
                 ]
               },
               "scope": {
-                "type": "object",
-                "additionalProperties": false
+                "$ref": "urn:cedarkit:query:common:v1#/$defs/applies"
               },
               "candidate_filter": {
                 "type": "object",
@@ -1670,7 +1678,9 @@
                 "enum": [
                   "vertical",
                   "time",
-                  "member"
+                  "member",
+                  "statistics",
+                  "unit"
                 ]
               },
               "rule": {
@@ -1681,6 +1691,76 @@
             },
             "required": [
               "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "mapping"
+              },
+              "resource": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "mappings"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "mapping": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "resource",
+              "mapping"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "definition"
+              },
+              "resource": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "parameters"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "parameter_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "resource",
+              "parameter_id"
             ],
             "additionalProperties": false
           }
