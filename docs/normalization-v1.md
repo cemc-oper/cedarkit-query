@@ -33,7 +33,19 @@ assert query_identity(q) == query_identity({"level_type": "pressure", "level": 8
 `query_identity(query, context=...)` hashes canonical effective discrete
 conditions and the explicitly supplied semantic context. Equivalent discrete
 range/list forms, scalar derived times, equivalent units, and list order share
-an identity. Supply the relevant source scope when it contributes to identity. Native constraints remain part of the identity.
+an identity. Supply the relevant source scope and definition versions when
+they contribute to identity. Native constraints remain part of the identity.
+
+For named selections, call `prepare_queries(queries, parameters)` before
+computing an effective identity or combining branches. Pass the validated
+parameter index by stable ID, with inherited fixed conditions already applied.
+IDs match exactly. Names and aliases match case-sensitively within the supplied
+definitions, and ambiguity reports candidate IDs. The helper adds fixed
+conditions, normalizes explicit units, and resolves a parent selection to a
+variant when its full fixed conditions already follow from the selection.
+For example, a temperature Query that explicitly selects 200 cm above ground
+can have the same effective identity as `cedarkit.t2m`. Translation into
+product-specific native keys is a source execution step.
 
 `expand_queries(queries, max_expansion=10000, member_roles=None, cemc=False)`
 returns unique canonical Query combinations. Whole layer pairs stay intact.

@@ -6,6 +6,24 @@
     "query": {
       "type": "object",
       "properties": {
+        "parameter": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
+              },
+              "minItems": 1
+            }
+          ]
+        },
         "level_type": {
           "enum": [
             "pressure",

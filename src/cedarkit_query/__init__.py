@@ -25,6 +25,7 @@ from .normalize import (
     normalize_query,
     query_identity,
 )
+from .parameters import prepare_queries
 
 __all__ = [
     "Query",
@@ -43,6 +44,7 @@ __all__ = [
     "get_schema",
     "validate_value",
     "normalize_query",
+    "prepare_queries",
     "expand_queries",
     "intersect_queries",
     "intersect_scopes",

@@ -316,7 +316,7 @@ def _normalize(query, path="", allow_unbound=False):
         result["level"] = _normal_selector(result["level"], "number", path + "/level")
         if unit is not None:
             result["level_unit"] = unit_name(unit)
-    for field in ("time", "step", "valid_time", "member", "member_role"):
+    for field in ("time", "step", "valid_time", "member", "parameter", "member_role"):
         if field in result:
             category = (
                 selector_kind(field)

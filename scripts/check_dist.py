@@ -24,9 +24,11 @@ KINDS = (
 )
 CHECK = """
 import importlib.metadata
+import json
 from pathlib import Path
 import sys
 import cedarkit_query as cq
+import yaml
 assert Path(cq.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 assert importlib.metadata.version("cedarkit-query") == sys.argv[1]
 for kind in ("common", "query", "context", "request", "report", "explanation", "error", "catalog"):
@@ -34,6 +36,21 @@ for kind in ("common", "query", "context", "request", "report", "explanation", "
 request = cq.Request.from_dict({"api_version": "cedarkit.request/v1", "source": {"kind": "file", "path": "absent.grib2"}, "queries": [{}]})
 assert request.completeness is None
 assert cq.normalize_query({"level_type":"pressure", "level":85000, "level_unit":"Pa"}).level == 850
+for conditions in (
+    {"parameter": "cedarkit.t2m"},
+    {"parameter": "cedarkit.t", "level_type": "pressure", "level": 850, "level_unit": "hPa"},
+):
+    data = {
+        "api_version": "cedarkit.request/v1",
+        "source": {"kind": "local", "dataset": "cma_gfs_gmf", "root": "/CMADAAS"},
+        "queries": [{**conditions, "time": "2026-11-02T12:00:00Z", "step": "PT6H"}],
+    }
+    request = cq.Request.from_dict(data)
+    for text in (json.dumps(data), yaml.safe_dump(data)):
+        loaded = cq.load_request(text)
+        assert loaded == request
+        assert cq.query_identity(loaded.queries[0]) == cq.query_identity(request.queries[0])
+assert cq.Query(native={"grib": {"shortName": "2t"}}).native["grib"]["shortName"] == "2t"
 assert not {"reki", "pandas", "xarray", "eccodes", "nuwe_cmadaas"} & set(sys.modules)
 for old in ("RequestList", "Binding", "Response", "Transform", "parse_text_request"):
     assert not hasattr(cq, old)
