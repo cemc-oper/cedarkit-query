@@ -18,17 +18,13 @@ def validate_semantics(data, kind):
             _context(data["context"], "/context")
     elif kind == "context":
         _context(data, "")
-    elif kind in {"parameters", "mappings", "catalog"}:
-        from .resources import validate_resource
-
-        try:
-            validate_resource(data, kind)
-        except QueryError as exc:
-            if exc.code == "invalid_query":
-                raise QueryError(
-                    "invalid_config", exc.path, exc.message, dict(exc.context)
-                ) from exc
-            raise
+    elif kind == "catalog":
+        names = set()
+        for i, dataset in enumerate(data["datasets"]):
+            for name in (dataset["id"], *dataset.get("aliases", ())):
+                if name in names:
+                    _error(f"/datasets/{i}", "dataset identifier or alias is repeated")
+                names.add(name)
     elif kind in {"report", "explanation"}:
         _snapshot(data, kind)
     elif kind == "error":
@@ -60,8 +56,7 @@ def _context(data, path):
             raise QueryError(
                 "invalid_config", exc.path, exc.message, dict(exc.context)
             ) from exc
-    refs = [(k, data[k]) for k in ("parameter_registry", "catalog") if k in data]
-    refs.extend(("mappings/" + k, v) for k, v in data.get("mappings", {}).items())
+    refs = [("catalog", data["catalog"])] if "catalog" in data else []
     for key, ref in refs:
         if "path" in ref:
             value = ref["path"]
@@ -105,16 +100,7 @@ def _snapshot(data, kind):
         if [b["index"] for b in branches] != list(range(len(branches))):
             _error(f"/translations/{ti}/branches", "branch indexes must be contiguous")
         for bi, branch in enumerate(branches):
-            residual = dict(branch["residual"])
-            residual.pop("statistics", None)
-            _normalize(residual, allow_unbound=True)
-            if "statistics" in branch["residual"]:
-                from .resources import normalize_statistics
-
-                normalize_statistics(
-                    branch["residual"]["statistics"],
-                    f"/translations/{ti}/branches/{bi}/residual/statistics",
-                )
+            _normalize(branch["residual"], allow_unbound=True)
             for basis in branch["basis"]:
                 if (
                     "resource" in basis

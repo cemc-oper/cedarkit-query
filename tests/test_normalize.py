@@ -53,7 +53,7 @@ def test_equivalent_identity(left, right):
 
 
 def test_identity_context_is_semantic_and_native_is_retained():
-    q = {"parameter": "t"}
+    q = {"native": {"grib": {"shortName": "t"}}}
     assert query_identity(q, context={"scope": {"member": 0}}) != query_identity(
         q, context={"scope": {"member": 1}}
     )
@@ -115,7 +115,7 @@ def test_count_legal_effective_combinations_not_raw_time_cartesian():
 
 def test_expansion_union_dedup_limits_and_continuous_filters():
     q = {
-        "parameter": "t",
+        "native": {"grib": {"shortName": "t"}},
         "level_type": "pressure",
         "level": [850, 500],
         "step": {"range": {"start": "PT0H", "end": "PT24H", "every": "PT6H"}},
@@ -187,8 +187,8 @@ def test_layer_pairs_and_native_selector_expansion():
 
 def test_chain_intersection_and_origins():
     first = [
-        {"parameter": "t", "level_type": "pressure", "level": 850, "step": "PT6H"},
-        {"parameter": "t", "level_type": "pressure", "level": 500, "step": "PT12H"},
+        {"native": {"grib": {"shortName": "t"}}, "level_type": "pressure", "level": 850, "step": "PT6H"},
+        {"native": {"grib": {"shortName": "t"}}, "level_type": "pressure", "level": 500, "step": "PT12H"},
     ]
     branches = combine_queries(
         [first, [{"level_type": "pressure", "level": 500}]], max_expansion=2
@@ -362,8 +362,8 @@ def test_later_invalid_time_query_cannot_be_hidden_by_empty_selection():
     with pytest.raises(QueryError):
         combine_queries(
             [
-                [{"parameter": "t"}],
-                [{"parameter": "u"}],
+                [{"native": {"grib": {"shortName": "t"}}}],
+                [{"native": {"grib": {"shortName": "u"}}}],
                 [
                     {
                         "time": ["2026-10-27T00:00:00Z", "2026-10-27T06:00:00Z"],

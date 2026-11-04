@@ -33,10 +33,7 @@ assert query_identity(q) == query_identity({"level_type": "pressure", "level": 8
 `query_identity(query, context=...)` hashes canonical effective discrete
 conditions and the explicitly supplied semantic context. Equivalent discrete
 range/list forms, scalar derived times, equivalent units, and list order share
-an identity. Supply resolved semantic scope/definition versions when relevant;
-it is not an implicit process-wide cache key. Native constraints remain in the
-identity and do not acquire invented parameter IDs. `prepare_queries` should
-resolve aliases and fixed variants before computing a business identity.
+an identity. Supply the relevant source scope when it contributes to identity. Native constraints remain part of the identity.
 
 `expand_queries(queries, max_expansion=10000, member_roles=None, cemc=False)`
 returns unique canonical Query combinations. Whole layer pairs stay intact.
@@ -68,20 +65,12 @@ intersections preserve their lattices and original paired constraints.
 `constrain_query(query, fixed_or_scope)` is intentionally different from a
 normal intersection: every explicit scalar/list/every choice must be
 compatible with the binding. A continuous filter may contain a fixed value.
-Thus t2m with [2,10] conflicts, while its height range 0–10 narrows to 2. Native
-explicit choices are protected as well. Parameter-resource statistics remain
-outside the public Query grammar; `prepare_queries` handles their applicable
-member conflicts and preserves their parameter identities.
-
-The I05 selection implementation must resolve resource/product constraints
-for **every new input** with `prepare_queries` before combining steps, including
-a step after an empty selection. It must preserve caller-specific origins when
-wrapping pure-helper diagnostics. No function here runs first/one/all,
-completeness checks, output assembly, or backend translation.
+For a height scope fixed at 2 m, a selector list containing 2 and 10 m
+conflicts, while a continuous 0–10 m range can narrow to 2 m. The same
+constraint semantics apply to native keys.
 
 `intersect_scopes(left, right)` combines configuration bounds without enumerating
 an entire product domain. It uses the shared intersection semantics, permits a
 partial vertical bound to gain its type from the other bound, and returns None
-for a known disjoint conjunction. I04 uses it for catalog/context construction;
-it does not execute a selection or verify every temporal tuple. Effective Query
+for a known disjoint conjunction. It does not execute a selection or verify every temporal tuple. Effective Query
 preparation and expansion retain their normal legality and max_expansion checks.

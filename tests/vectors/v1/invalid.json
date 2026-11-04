@@ -1,14 +1,5 @@
 [
   {
-    "id": "no-null",
-    "kind": "query",
-    "value": {
-      "parameter": null
-    },
-    "code": "invalid_query",
-    "path": "/parameter"
-  },
-  {
     "id": "no-boolean-member",
     "kind": "query",
     "value": {
@@ -82,27 +73,5 @@
     },
     "code": "invalid_request",
     "path": "/queries"
-  },
-  {
-    "id": "no-old-registry",
-    "kind": "parameters",
-    "value": {
-      "api_version": "reki.parameter-registry/v3",
-      "entries": []
-    },
-    "code": "unsupported_version",
-    "path": "/api_version"
-  },
-  {
-    "id": "strict-resource-version",
-    "kind": "parameters",
-    "value": {
-      "api_version": "cedarkit.parameters/v1",
-      "id": "p",
-      "version": 1,
-      "parameters": []
-    },
-    "code": "invalid_config",
-    "path": "/version"
   }
 ]

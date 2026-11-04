@@ -1,58 +1,12 @@
 {
   "api_version": "cedarkit.catalog/v1",
-  "id": "test.catalog",
+  "id": "example.catalog",
   "version": "1",
   "datasets": [
     {
       "id": "example",
-      "products": [
-        {
-          "id": "orig",
-          "version": "oper-1",
-          "scope": {},
-          "provides": [
-            {
-              "parameter": "cedarkit.t2m"
-            },
-            {
-              "parameter": "cedarkit.rain24.prob"
-            }
-          ],
-          "populations": [
-            {
-              "id": "all",
-              "members": {
-                "range": {
-                  "start": 0,
-                  "end": 30,
-                  "every": 1
-                }
-              },
-              "missing": {
-                "policy": "use_available",
-                "min_members": 29
-              }
-            }
-          ],
-          "methods": [],
-          "sources": [
-            {
-              "id": "files",
-              "kind": "file"
-            },
-            {
-              "id": "remote",
-              "kind": "cmadaas",
-              "data_code": "SYNTHETIC_DATA_CODE",
-              "interface_contract": {
-                "id": "example.single-field",
-                "version": 1
-              },
-              "time_zone": "Asia/Shanghai"
-            }
-          ],
-          "evidence": []
-        }
+      "local_layout": [
+        "{date_label}/original_{start_time_label}_{forecast_hour_label}.grib2"
       ]
     }
   ]

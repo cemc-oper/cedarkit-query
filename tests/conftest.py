@@ -12,14 +12,8 @@ def example(name):
     )
 
 
-@pytest.fixture
-def parameters():
-    return example("parameters")
 
 
-@pytest.fixture
-def mappings():
-    return example("mappings")
 
 
 @pytest.fixture
@@ -45,7 +39,7 @@ def report():
         "queries": [
             {
                 "index": 0,
-                "query": {"parameter": "cedarkit.t"},
+                "query": {"native": {"grib": {"parameterNumber": 0}}},
                 "summary": deepcopy(summary),
                 "origins": [{"step_index": 0, "query_index": 0}],
             }
@@ -68,7 +62,7 @@ def report():
                         "scope": {},
                         "candidate_filter": {"parameterNumber": 0},
                         "residual": {},
-                        "basis": [{"kind": "builtin", "rule": "grib.fixed_surfaces"}],
+                        "basis": [],
                         "execution": {"status": "exhausted"},
                     }
                 ],

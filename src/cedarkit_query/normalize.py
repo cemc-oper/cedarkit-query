@@ -48,24 +48,6 @@ _UNIT_ALIASES = {
     "centimetre": "cm",
     "kilometer": "km",
     "kilometre": "km",
-    "kelvin": "K",
-    "Celsius": "degC",
-    "degrees_Celsius": "degC",
-    "percent": "%",
-    "gpm": "Gpm",
-    "s**-1": "s-1",
-    "m s**-1": "m/s",
-    "m s-1": "m/s",
-    "kg kg**-1": "kg/kg",
-    "kg kg-1": "kg/kg",
-    "kg m**-2": "kg/m2",
-    "kg m-2": "kg/m2",
-    "W m**-2": "W/m2",
-    "W m-2": "W/m2",
-    "J m**-2": "J/m2",
-    "J m-2": "J/m2",
-    "m**2 s**-2": "m2/s2",
-    "J kg-1": "J/kg",
 }
 
 
@@ -147,35 +129,6 @@ def time_text(seconds):
 
 def unit_name(unit):
     return _UNIT_ALIASES.get(unit, unit)
-
-
-def unit_info(unit):
-    """Finite shared equivalences, not a decoder or an arbitrary unit formula."""
-    unit = unit_name(unit)
-    known = {
-        "Pa": ("pressure", "1", "0"),
-        "hPa": ("pressure", "100", "0"),
-        "m": ("length", "1", "0"),
-        "cm": ("length", ".01", "0"),
-        "mm": ("length", ".001", "0"),
-        "km": ("length", "1000", "0"),
-        "K": ("temperature", "1", "0"),
-        "degC": ("temperature", "1", "273.15"),
-        "%": ("ratio", ".01", "0"),
-        "1": ("ratio", "1", "0"),
-        "m2/s2": ("specific_energy", "1", "0"),
-        "J/kg": ("specific_energy", "1", "0"),
-    }
-    dimension, factor, offset = known.get(unit, (unit, "1", "0"))
-    return dimension, Decimal(factor), Decimal(offset)
-
-
-def convert_quantity(value, source, target, path=""):
-    sd, sf, so = unit_info(source)
-    td, tf, to = unit_info(target)
-    if sd != td:
-        _fail(path, "incompatible units", "invalid_config")
-    return json_number((Decimal(str(value)) * sf + so - to) / tf)
 
 
 def _numeric(value, kind, path=""):
@@ -363,7 +316,7 @@ def _normalize(query, path="", allow_unbound=False):
         result["level"] = _normal_selector(result["level"], "number", path + "/level")
         if unit is not None:
             result["level_unit"] = unit_name(unit)
-    for field in ("time", "step", "valid_time", "member", "parameter", "member_role"):
+    for field in ("time", "step", "valid_time", "member", "member_role"):
         if field in result:
             category = (
                 selector_kind(field)

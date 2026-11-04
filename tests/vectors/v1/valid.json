@@ -59,28 +59,6 @@
     }
   },
   {
-    "id": "blank-parameters",
-    "kind": "parameters",
-    "value": {
-      "api_version": "cedarkit.parameters/v1",
-      "id": "empty",
-      "version": "1",
-      "parameters": []
-    }
-  },
-  {
-    "id": "blank-mappings",
-    "kind": "mappings",
-    "value": {
-      "api_version": "cedarkit.mappings/v1",
-      "id": "empty",
-      "version": "1",
-      "backend": "grib2",
-      "mappings": [],
-      "tables": []
-    }
-  },
-  {
     "id": "blank-catalog",
     "kind": "catalog",
     "value": {

@@ -31,7 +31,7 @@ def request(query=None):
     "data",
     [
         {},
-        {"parameter": ["t", "cedarkit.t"]},
+        {"native": {"grib": {"shortName": ["t", "u"]}}},
         {"native": {"grib": {"edition": 2, "parameterNumber": [0, 1]}}},
         {"layer": {"bottom": {"type": "surface"}, "top": {"type": "atmosphere_top"}}},
         {"level_type": "pressure", "level": {"range": {"start": 500, "end": 850}}},
@@ -106,17 +106,18 @@ def test_duplicate_unsafe_and_nonfinite_input(text, format):
 
 
 def test_immutable_values_and_independent_copy():
-    raw = {"parameter": ["t", "u"]}
+    raw = {"native": {"grib": {"shortName": ["t", "u"]}}}
     q = Query(raw)
-    raw["parameter"].append("v")
-    assert q.parameter == ("t", "u")
+    raw["native"]["grib"]["shortName"].append("v")
+    assert q.native["grib"]["shortName"] == ("t", "u")
     copy = q.to_dict()
-    copy["parameter"].append("v")
-    assert q.parameter == ("t", "u")
-    with pytest.raises((AttributeError, TypeError)):
-        q.parameter[0] = "v"
+    copy["native"]["grib"]["shortName"].append("v")
+    assert q.native["grib"]["shortName"] == ("t", "u")
+    with pytest.raises(TypeError):
+        q.native["grib"]["shortName"][0] = "v"
     with pytest.raises(AttributeError):
-        q.parameter = "v"
+        q.native = {}
+
 
 
 @pytest.mark.parametrize(
@@ -171,14 +172,13 @@ def test_request_paths_no_discovery_or_external_context_read(tmp_path, monkeypat
         "glob": ["*.grb", "**/*.grb2"],
     }
     data["context"] = {
-        "parameter_registry": {"path": "./resources/p.json"},
-        "mappings": {"cmadaas": {"builtin": "default"}},
+        "catalog": {"path": "./resources/p.json"},
         "execution": {"max_expansion": 7},
     }
     r = Request.from_dict(data, base_dir=tmp_path)
     assert r.source["directory"] == str(tmp_path / "grib")
     assert r.source["glob"] == ("*.grb", "**/*.grb2")
-    assert r.context["parameter_registry"]["path"] == str(tmp_path / "resources/p.json")
+    assert r.context["catalog"]["path"] == str(tmp_path / "resources/p.json")
     assert r.completeness is None and "completeness" not in r.to_dict()
     for ext in ["json", "yaml", "yml"]:
         dest = tmp_path / f"job.{ext}"
@@ -231,7 +231,7 @@ def test_error_families_serialization_and_report(report):
     report["overall"]["status"] = "missing"
     report["overall"]["satisfied_count"] = 0
     report["overall"]["missing"] = [
-        {"selection": {"parameter": "t"}, "query_indexes": [0]}
+        {"selection": {"native": {"grib": {"shortName": "t"}}}, "query_indexes": [0]}
     ]
     report["queries"][0]["summary"] = deepcopy(report["overall"])
     exc = CompletenessError("missing_fields", report=report)
@@ -385,8 +385,6 @@ def test_schema_resources_and_light_import_boundary():
         "report",
         "explanation",
         "error",
-        "parameters",
-        "mappings",
         "catalog",
     ]:
         schema = get_schema(kind)
@@ -426,7 +424,7 @@ def test_external_context_uses_its_own_document_base(tmp_path):
     context_dir = tmp_path / "configuration"
     context_dir.mkdir()
     config = context_dir / "context.yaml"
-    config.write_text("parameter_registry:\n  path: ../definitions/parameters.json\n")
+    config.write_text("catalog:\n  path: ../definitions/parameters.json\n")
     data = request()
     data["context"] = "../configuration/context.yaml"
     path = request_dir / "job.json"
@@ -434,7 +432,7 @@ def test_external_context_uses_its_own_document_base(tmp_path):
     r = Request.load(path)
     assert r.context == str(config)
     c = load_value(config.read_text(), "context", base_dir=config.parent)
-    assert c.parameter_registry["path"] == str(tmp_path / "definitions/parameters.json")
+    assert c.catalog["path"] == str(tmp_path / "definitions/parameters.json")
 
 
 def test_null_query_is_not_the_empty_query_and_runtime_objects_are_not_serialized():

@@ -10,7 +10,6 @@ from cedarkit_query import (
     QueryError,
     load_value,
     normalize_query,
-    validate_resource_set,
 )
 
 ROOT = Path(__file__).parents[1]
@@ -43,17 +42,3 @@ def test_reject_vectors_in_all_forms(case):
 @pytest.mark.parametrize("case", vectors("normalization"), ids=lambda c: c["id"])
 def test_normalization_vectors(case):
     assert normalize_query(case["value"]).to_dict() == case["expected"]
-
-
-def test_examples_are_a_valid_synthetic_resource_combination():
-    def read(name):
-        return json.loads((ROOT / "examples" / (name + ".json")).read_text())
-
-    resources = validate_resource_set(
-        read("parameters"),
-        [read("mappings")],
-        read("catalog"),
-        products=[("example", "orig", "oper-1")],
-        interface_contracts={("example.single-field", 1)},
-    )
-    assert resources.parameter("st(10-40)")["parameter_id"] == "cedarkit.st-10-40"
