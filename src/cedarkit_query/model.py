@@ -25,11 +25,15 @@ KINDS = (
     "explanation",
     "error",
     "catalog",
+    "parameters",
+    "mappings",
 )
 VERSIONS = {
     "request": "cedarkit.request/v1",
     "error": "cedarkit.error/v1",
     "catalog": "cedarkit.catalog/v1",
+    "parameters": "cedarkit.parameters/v1",
+    "mappings": "cedarkit.mappings/v1",
 }
 StrictValidator = validators.extend(
     Draft202012Validator,
@@ -279,13 +283,22 @@ class Catalog(ProtocolValue):
     KIND = "catalog"
 
 
+class Parameters(ProtocolValue):
+    KIND = "parameters"
+
+
+class Mappings(ProtocolValue):
+    KIND = "mappings"
+
+
 class Context(ProtocolValue):
     KIND = "context"
 
     def __init__(self, value, *, base_dir=None):
         data = validate_value(value, "context")
         base = Path.cwd() if base_dir is None else Path(base_dir).absolute()
-        refs = [data.get("catalog")]
+        refs = [data.get("catalog"), data.get("parameter_registry")]
+        refs.extend(data.get("mappings", {}).values())
         for ref in refs:
             if ref and "path" in ref:
                 ref["path"] = os.path.abspath(base / ref["path"])
@@ -305,6 +318,8 @@ MODELS = {
         QueryExplanation,
         ErrorValue,
         Catalog,
+        Parameters,
+        Mappings,
         Context,
     )
 }

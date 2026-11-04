@@ -5,6 +5,8 @@ from .model import (
     Catalog,
     Context,
     ErrorValue,
+    Mappings,
+    Parameters,
     Query,
     QueryExplanation,
     QueryReport,
@@ -26,6 +28,7 @@ from .normalize import (
     query_identity,
 )
 from .parameters import prepare_queries
+from .resources import validate_resource_set
 
 __all__ = [
     "Query",
@@ -37,6 +40,9 @@ __all__ = [
     "SourceError",
     "ErrorValue",
     "Catalog",
+    "Parameters",
+    "Mappings",
+    "validate_resource_set",
     "Context",
     "load_value",
     "load_request",

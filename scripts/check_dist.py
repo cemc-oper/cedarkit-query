@@ -21,6 +21,8 @@ KINDS = (
     "explanation",
     "error",
     "catalog",
+    "parameters",
+    "mappings",
 )
 CHECK = """
 import importlib.metadata
@@ -31,7 +33,7 @@ import cedarkit_query as cq
 import yaml
 assert Path(cq.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 assert importlib.metadata.version("cedarkit-query") == sys.argv[1]
-for kind in ("common", "query", "context", "request", "report", "explanation", "error", "catalog"):
+for kind in ("common", "query", "context", "request", "report", "explanation", "error", "catalog", "parameters", "mappings"):
     assert cq.get_schema(kind)["$id"] == f"urn:cedarkit:query:{kind}:v1"
 request = cq.Request.from_dict({"api_version": "cedarkit.request/v1", "source": {"kind": "file", "path": "absent.grib2"}, "queries": [{}]})
 assert request.completeness is None
@@ -54,7 +56,7 @@ assert cq.Query(native={"grib": {"shortName": "2t"}}).native["grib"]["shortName"
 assert not {"reki", "pandas", "xarray", "eccodes", "nuwe_cmadaas"} & set(sys.modules)
 for old in ("RequestList", "Binding", "Response", "Transform", "parse_text_request"):
     assert not hasattr(cq, old)
-print(sys.version.split()[0], "isolated wheel import and 8 packaged schemas: OK")
+print(sys.version.split()[0], "isolated wheel import and 10 packaged schemas: OK")
 """
 
 
@@ -72,7 +74,7 @@ def main():
     wheel, sdist = wheels[0].resolve(), sdists[0].resolve()
     with tarfile.open(sdist) as archive:
         names = archive.getnames()
-        assert sum("/schemas/" in n and n.endswith(".json") for n in names) == 8
+        assert sum("/schemas/" in n and n.endswith(".json") for n in names) == 10
         assert (
             sum("/tests/vectors/v1/" in n and n.endswith(".json") for n in names) == 3
         )

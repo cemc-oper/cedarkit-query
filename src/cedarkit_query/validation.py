@@ -18,6 +18,10 @@ def validate_semantics(data, kind):
             _context(data["context"], "/context")
     elif kind == "context":
         _context(data, "")
+    elif kind in {"parameters", "mappings"}:
+        from .resources import validate_resource
+
+        validate_resource(data, kind)
     elif kind == "catalog":
         names = set()
         for i, dataset in enumerate(data["datasets"]):
@@ -25,6 +29,18 @@ def validate_semantics(data, kind):
                 if name in names:
                     _error(f"/datasets/{i}", "dataset identifier or alias is repeated")
                 names.add(name)
+            _resource_refs(dataset, f"/datasets/{i}")
+            seen = set()
+            for j, product in enumerate(dataset.get("products", ())):
+                path = f"/datasets/{i}/products/{j}"
+                identity = product["id"], product["version"]
+                if identity in seen:
+                    _error(path, "duplicate product ID and version")
+                seen.add(identity)
+                _normalize(product["scope"], path + "/scope", allow_unbound=True)
+                for key in ("provides", "expected_domain"):
+                    for index, query in enumerate(product.get(key, ())):
+                        _normalize(query, f"{path}/{key}/{index}", allow_unbound=True)
     elif kind in {"report", "explanation"}:
         _snapshot(data, kind)
     elif kind == "error":
@@ -56,7 +72,12 @@ def _context(data, path):
             raise QueryError(
                 "invalid_config", exc.path, exc.message, dict(exc.context)
             ) from exc
-    refs = [("catalog", data["catalog"])] if "catalog" in data else []
+    _resource_refs(data, path)
+
+
+def _resource_refs(data, path):
+    refs = [(key, data[key]) for key in ("catalog", "parameter_registry") if key in data]
+    refs.extend((f"mappings/{key}", ref) for key, ref in data.get("mappings", {}).items())
     for key, ref in refs:
         if "path" in ref:
             value = ref["path"]

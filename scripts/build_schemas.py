@@ -22,7 +22,7 @@ def main():
         Draft202012Validator.check_schema(schema)
         assert schema["$id"] not in documents, schema["$id"]
         documents[schema["$id"]] = schema
-    assert len(documents) == 8, "expected exactly the eight current contract schemas"
+    assert len(documents) == 10, "expected exactly the ten current contract schemas"
 
     def refs(node, document):
         if isinstance(node, list):
@@ -47,7 +47,7 @@ def main():
             assert path.read_text() == text, f"noncanonical JSON: {path}"
         else:
             path.write_text(text)
-    print("8 authoritative schemas: valid, canonical, and closed local references")
+    print("10 authoritative schemas: valid, canonical, and closed local references")
 
 
 if __name__ == "__main__":
