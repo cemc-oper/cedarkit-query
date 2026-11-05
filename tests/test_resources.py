@@ -67,3 +67,31 @@ def test_ensemble_statistic_is_a_named_product_not_an_individual_member():
     with pytest.raises(QueryError) as caught:
         prepare_queries([{"parameter": statistic["name"], "member": 0}], index)
     assert (caught.value.code, caught.value.path) == ("constraint_conflict", "/member")
+
+
+def test_time_statistic_can_inherit_operation_and_refine_period():
+    rain = {
+        "parameter_id": "test.rain",
+        "name": "rain",
+        "unit": "mm",
+        "fixed_conditions": {
+            "statistics": {"over": "time", "operation": "accumulation"}
+        },
+    }
+    since_initialization = {
+        "parameter_id": "test.rain.since-init",
+        "name": "rain-since-init",
+        "parent": "test.rain",
+        "fixed_conditions": {
+            "statistics": {"period": {"kind": "since_initialization"}}
+        },
+    }
+    params = effective_parameters(snapshot([since_initialization, rain]))
+    assert params["test.rain.since-init"]["fixed_conditions"]["statistics"] == {
+        "over": "time",
+        "operation": "accumulation",
+        "period": {"kind": "since_initialization"},
+    }
+    since_initialization["fixed_conditions"]["statistics"]["operation"] = "maximum"
+    with pytest.raises(QueryError, match="conflicting inherited statistic"):
+        Parameters(snapshot([since_initialization, rain]))

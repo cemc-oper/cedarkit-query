@@ -51,6 +51,19 @@ def _effective(data):
             path + "/fixed_conditions",
             level_type=inherited.get("level_type"),
         )
+        if "statistics" in fixed and "statistics" in inherited:
+            parent_stats = inherited["statistics"]
+            child_stats = fixed["statistics"]
+            for key in parent_stats.keys() & child_stats.keys():
+                if parent_stats[key] != child_stats[key]:
+                    _error(
+                        path + "/fixed_conditions/statistics/" + key,
+                        "conflicting inherited statistic",
+                    )
+            fixed["statistics"] = {**parent_stats, **child_stats}
+            inherited = {
+                key: value for key, value in inherited.items() if key != "statistics"
+            }
         for key in fixed.keys() & inherited.keys():
             if fixed[key] != inherited[key]:
                 _error(
