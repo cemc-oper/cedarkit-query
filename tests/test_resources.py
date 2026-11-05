@@ -95,3 +95,57 @@ def test_time_statistic_can_inherit_operation_and_refine_period():
     since_initialization["fixed_conditions"]["statistics"]["operation"] = "maximum"
     with pytest.raises(QueryError, match="conflicting inherited statistic"):
         Parameters(snapshot([since_initialization, rain]))
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},
+        {"operation": "accumulation", "period": {"kind": "since_initialization"}},
+        {
+            "period": {"kind": "trailing", "duration": "PT3H"},
+            "response_profile": "derived_grid",
+        },
+    ],
+)
+def test_service_statistics_config_has_the_same_three_resource_forms(config):
+    import json
+
+    import yaml
+    from cedarkit_query import Mappings, load_value
+
+    resource = {
+        "api_version": "cedarkit.mappings/v1",
+        "id": "test.service",
+        "version": "1",
+        "backend": "cmadaas",
+        "tables": [],
+        "mappings": [
+            {
+                "id": "rain",
+                "backend": "cmadaas",
+                "parameter_id": "test.rain",
+                "applies_to": {},
+                "when": {},
+                "native": {
+                    "match": {"fcstEle": "TPE03"},
+                    "translate": {
+                        "statistics": {
+                            "rule": "cmadaas.statistics_fields",
+                            "config": config,
+                        }
+                    },
+                },
+                "evidence": ["reviewed service contract"],
+            }
+        ],
+    }
+    expected = Mappings(resource)
+    assert load_value(json.dumps(resource), "mappings") == expected
+    assert load_value(yaml.safe_dump(resource), "mappings", format="yaml") == expected
+    if config:
+        resource["mappings"][0]["native"]["translate"]["statistics"]["config"][
+            "period"
+        ] = {"kind": "trailing"}
+        with pytest.raises(QueryError):
+            Mappings(resource)

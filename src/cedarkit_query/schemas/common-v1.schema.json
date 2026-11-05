@@ -2981,7 +2981,53 @@
             },
             "config": {
               "type": "object",
-              "properties": {},
+              "properties": {
+                "period": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "trailing"
+                        },
+                        "duration": {
+                          "type": "string",
+                          "pattern": "^P(?=\\d|T\\d)(?:\\d+(?:\\.\\d+)?D)?(?:T(?=\\d)(?:\\d+(?:\\.\\d+)?H)?(?:\\d+(?:\\.\\d+)?M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "duration"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "since_initialization"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "response_profile": {
+                  "type": "string",
+                  "enum": [
+                    "derived_grid"
+                  ]
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "accumulation"
+                  ]
+                }
+              },
               "required": [],
               "additionalProperties": false
             }
