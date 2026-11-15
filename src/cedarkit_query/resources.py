@@ -146,7 +146,8 @@ def validate_resource_set(parameters, mappings, catalog, dataset_id):
     from .model import Catalog, Mappings
 
     effective = effective_parameters(parameters)
-    datasets = {row["id"]: row for row in Catalog(catalog).to_dict()["datasets"]}
+    catalog = catalog if type(catalog) is Catalog else Catalog(catalog)
+    datasets = {row["id"]: row for row in catalog.to_dict()["datasets"]}
     if dataset_id not in datasets:
         _error("/datasets", "dataset is absent from catalog")
     products = {
@@ -167,7 +168,12 @@ def validate_resource_set(parameters, mappings, catalog, dataset_id):
                     _error(f"/datasets/products/{key}", "unknown catalog parameter ID")
 
     resources = _index(
-        [Mappings(value).to_dict() for value in mappings], "backend", "/mappings"
+        [
+            (value if type(value) is Mappings else Mappings(value)).to_dict()
+            for value in mappings
+        ],
+        "backend",
+        "/mappings",
     )
     applicable = {identity: [] for identity in products}
     for resource in resources.values():
@@ -265,4 +271,5 @@ def effective_parameters(parameters):
     """Expand validated parameter definitions for binding."""
     from .model import Parameters
 
-    return _effective(Parameters(parameters).to_dict())
+    parameters = parameters if type(parameters) is Parameters else Parameters(parameters)
+    return _effective(parameters.to_dict())

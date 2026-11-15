@@ -1,5 +1,13 @@
 import pytest
-from cedarkit_query import Parameters, QueryError, prepare_queries
+from cedarkit_query import (
+    Catalog,
+    Mappings,
+    Parameters,
+    QueryError,
+    prepare_queries,
+    validate_resource_set,
+)
+from cedarkit_query import model
 from cedarkit_query.resources import effective_parameters
 
 BASE = {"parameter_id": "cedarkit.t", "name": "t", "unit": "K"}
@@ -27,6 +35,60 @@ def test_parameters_inherit_without_depending_on_record_order():
     assert index["cedarkit.t2m"]["unit"] == "K"
     (query,) = prepare_queries([{"parameter": "t2m"}], index)
     assert query.to_dict() == {"parameter": "cedarkit.t2m", **HEIGHT}
+
+
+def test_resource_set_reuses_validated_models(monkeypatch):
+    parameters = Parameters(snapshot([BASE, VARIANT]))
+    product = {
+        "id": "original",
+        "version": "1",
+        "scope": {},
+        "provides": [{"parameter": "cedarkit.t2m"}],
+        "populations": [],
+        "methods": [],
+        "evidence": [],
+        "sources": [{"id": "file", "kind": "file"}],
+    }
+    catalog = Catalog(
+        {
+            "api_version": "cedarkit.catalog/v1",
+            "id": "test.catalog",
+            "version": "1",
+            "datasets": [{"id": "test", "products": [product]}],
+        }
+    )
+    mapping = {
+        "id": "t2m",
+        "parameter_id": "cedarkit.t2m",
+        "backend": "grib2",
+        "applies_to": {},
+        "when": {},
+        "evidence": [],
+        "native": {"match": {"shortName": "2t"}},
+    }
+    mappings = Mappings(
+        {
+            "api_version": "cedarkit.mappings/v1",
+            "id": "test.grib2",
+            "version": "1",
+            "backend": "grib2",
+            "tables": [],
+            "mappings": [mapping],
+        }
+    )
+    expected = validate_resource_set(
+        parameters.to_dict(), [mappings.to_dict()], catalog.to_dict(), "test"
+    )
+    validate_value = model.validate_value
+
+    def reject_revalidation(value, kind):
+        assert kind not in {"parameters", "catalog", "mappings"}
+        return validate_value(value, kind)
+
+    monkeypatch.setattr(model, "validate_value", reject_revalidation)
+    assert validate_resource_set(parameters, [mappings], catalog, "test") == expected
+    with pytest.raises(QueryError, match="dataset is absent"):
+        validate_resource_set(parameters, [mappings], catalog, "missing")
 
 
 @pytest.mark.parametrize(
