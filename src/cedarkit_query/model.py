@@ -332,20 +332,24 @@ def _format(path):
     return "json" if suffix == ".json" else "yaml"
 
 
+def _parse_text(text, kind, format):
+    try:
+        return parse(text, format)
+    except (ValueError, YAMLError) as exc:
+        raise QueryError(
+            "invalid_request"
+            if kind == "request"
+            else "invalid_query"
+            if kind == "query"
+            else "invalid_config",
+            "",
+            str(exc),
+        ) from exc
+
+
 def load_value(value, kind, *, format=None, base_dir=None):
     if isinstance(value, str):
-        try:
-            value = parse(value, format)
-        except (ValueError, YAMLError) as exc:
-            raise QueryError(
-                "invalid_request"
-                if kind == "request"
-                else "invalid_query"
-                if kind == "query"
-                else "invalid_config",
-                "",
-                str(exc),
-            ) from exc
+        value = _parse_text(value, kind, format)
     elif format is not None:
         raise ValueError("format is only valid for text input")
     return (
@@ -353,6 +357,29 @@ def load_value(value, kind, *, format=None, base_dir=None):
         if kind in {"request", "context"}
         else MODELS[kind](value)
     )
+
+
+def load_prevalidated_resource(text, kind):
+    """Load packaged resource JSON previously validated with `load_value`.
+
+    The caller selects a trusted catalog, parameter registry, or mapping
+    resource validated against this protocol version. Return the same immutable
+    model as `load_value`, with JSON parsing and the protocol version check.
+    """
+    if kind not in {"catalog", "parameters", "mappings"}:
+        raise ValueError(f"unknown resource kind: {kind}")
+    if not isinstance(text, str):
+        raise TypeError("prevalidated resource requires JSON text")
+    value = _parse_text(text, kind, "json")
+    if not isinstance(value, dict):
+        raise QueryError("invalid_config", "", "resource must be a JSON object")
+    if value.get("api_version") != VERSIONS[kind]:
+        raise QueryError(
+            "unsupported_version", "/api_version", "unsupported format version"
+        )
+    result = object.__new__(MODELS[kind])
+    object.__setattr__(result, "_value", freeze(value))
+    return result
 
 
 def load_request(value, *, format=None, base_dir=None):

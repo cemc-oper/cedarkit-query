@@ -1,9 +1,13 @@
+import json
+
 import pytest
 from cedarkit_query import (
     Catalog,
     Mappings,
     Parameters,
     QueryError,
+    load_prevalidated_resource,
+    load_value,
     prepare_queries,
     validate_resource_set,
 )
@@ -27,6 +31,52 @@ def snapshot(rows):
         "version": "1",
         "parameters": rows,
     }
+
+
+def test_prevalidated_resources_match_validated_models(catalog, monkeypatch):
+    resources = {
+        "catalog": catalog,
+        "parameters": snapshot([BASE, VARIANT]),
+        "mappings": {
+            "api_version": "cedarkit.mappings/v1",
+            "id": "test.grib2",
+            "version": "1",
+            "backend": "grib2",
+            "tables": [],
+            "mappings": [],
+        },
+    }
+    expected = {kind: load_value(value, kind) for kind, value in resources.items()}
+
+    def reject_validation(*args):
+        pytest.fail("prevalidated resource ran the full validator")
+
+    monkeypatch.setattr(model, "validate_value", reject_validation)
+    for kind, value in resources.items():
+        resource = load_prevalidated_resource(json.dumps(value), kind)
+        assert resource == expected[kind]
+        loaded = resource.to_dict()
+        loaded["id"] = "changed"
+        assert resource == expected[kind]
+        with pytest.raises(AttributeError):
+            resource.id = "changed"
+
+
+@pytest.mark.parametrize(
+    "text,code",
+    [
+        ("[]", "invalid_config"),
+        ('{"api_version":"cedarkit.catalog/v2"}', "unsupported_version"),
+        (
+            '{"api_version":"cedarkit.catalog/v1","api_version":"cedarkit.catalog/v1"}',
+            "invalid_config",
+        ),
+    ],
+)
+def test_prevalidated_resource_checks_json_and_protocol_version(text, code):
+    with pytest.raises(QueryError) as caught:
+        load_prevalidated_resource(text, "catalog")
+    assert caught.value.code == code
 
 
 def test_parameters_inherit_without_depending_on_record_order():
@@ -171,10 +221,7 @@ def test_time_statistic_can_inherit_operation_and_refine_period():
     ],
 )
 def test_service_statistics_config_has_the_same_three_resource_forms(config):
-    import json
-
     import yaml
-    from cedarkit_query import Mappings, load_value
 
     resource = {
         "api_version": "cedarkit.mappings/v1",
