@@ -29,7 +29,7 @@ from .normalize import (
     query_identity,
 )
 from .parameters import prepare_queries
-from .resources import validate_resource_set
+from .resources import validate_resource_set, validate_standalone_grib2
 
 __all__ = [
     "Query",
@@ -44,6 +44,7 @@ __all__ = [
     "Parameters",
     "Mappings",
     "validate_resource_set",
+    "validate_standalone_grib2",
     "Context",
     "load_value",
     "load_prevalidated_resource",

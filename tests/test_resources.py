@@ -10,6 +10,7 @@ from cedarkit_query import (
     load_value,
     prepare_queries,
     validate_resource_set,
+    validate_standalone_grib2,
 )
 from cedarkit_query import model
 from cedarkit_query.resources import effective_parameters
@@ -139,6 +140,91 @@ def test_resource_set_reuses_validated_models(monkeypatch):
     assert validate_resource_set(parameters, [mappings], catalog, "test") == expected
     with pytest.raises(QueryError, match="dataset is absent"):
         validate_resource_set(parameters, [mappings], catalog, "missing")
+
+
+@pytest.fixture
+def standalone():
+    parameters = snapshot([BASE, {**VARIANT, "aliases": ["2t"]}])
+    mappings = {
+        "api_version": "cedarkit.mappings/v1",
+        "id": "test.generic.grib2",
+        "version": "1",
+        "backend": "grib2",
+        "tables": [],
+        "mappings": [
+            {
+                "id": "t2m",
+                "parameter_id": "cedarkit.t2m",
+                "backend": "grib2",
+                "applies_to": {},
+                "when": {},
+                "evidence": [],
+                "native": {"match": {"tablesVersion": {"range": {"start": 1, "end": 37}}}},
+            }
+        ],
+    }
+    return parameters, mappings
+
+
+def test_standalone_resolves_public_alias_and_inherits_conditions(standalone):
+    parameters, mappings = standalone
+    effective = validate_standalone_grib2(Parameters(parameters), Mappings(mappings))
+    assert effective["cedarkit.t2m"]["unit"] == "K"
+    for token in ("cedarkit.t2m", "t2m", "2t"):
+        (selected,) = prepare_queries([{"parameter": token}], effective)
+        assert selected.to_dict() == {"parameter": "cedarkit.t2m", **HEIGHT}
+
+
+def test_standalone_rejects_ambiguous_alias(standalone):
+    parameters, mappings = standalone
+    parameters["parameters"][0] = {**BASE, "aliases": ["2t"]}
+    with pytest.raises(QueryError, match="ambiguous parameter name or alias"):
+        validate_standalone_grib2(parameters, mappings)
+
+
+@pytest.mark.parametrize(
+    "changes, path",
+    [
+        ({"parameter_id": "unregistered"}, "/parameter_id"),
+        ({"applies_to": {"dataset": "example"}}, "/applies_to"),
+        ({"applies_to": {"product": "orig"}}, "/applies_to"),
+        ({"applies_to": {"product_version": "current"}}, "/applies_to"),
+        ({"applies_to": {"time": "2026-11-02T12:00:00Z"}}, "/applies_to"),
+        ({"when": {"level": 10}}, "/when"),
+    ],
+)
+def test_standalone_requires_compatible_and_independent_rows(standalone, changes, path):
+    parameters, mappings = standalone
+    mappings["mappings"][0].update(changes)
+    with pytest.raises(QueryError) as caught:
+        validate_standalone_grib2(parameters, mappings)
+    assert (caught.value.code, caught.value.path) == ("invalid_config", "/mappings/0" + path)
+
+
+@pytest.mark.parametrize(
+    "selector, when, overlaps",
+    [
+        (4, {}, True),
+        ({"range": {"start": 32, "end": 40}}, HEIGHT, True),
+        ({"range": {"start": 38, "end": 40}}, {}, False),
+        (["32", 38], {}, False),
+        (4, {"level_type": "pressure", "level": 850}, False),
+    ],
+)
+def test_standalone_checks_native_and_effective_conditions(standalone, selector, when, overlaps):
+    parameters, mappings = standalone
+    mappings["mappings"].append({
+        **mappings["mappings"][0],
+        "id": "other",
+        "parameter_id": "cedarkit.t",
+        "when": when,
+        "native": {"match": {"tablesVersion": selector}},
+    })
+    if overlaps:
+        with pytest.raises(QueryError, match="overlapping standalone mapping"):
+            validate_standalone_grib2(parameters, mappings)
+    else:
+        validate_standalone_grib2(parameters, mappings)
 
 
 @pytest.mark.parametrize(

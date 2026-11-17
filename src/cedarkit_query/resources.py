@@ -1,8 +1,14 @@
 """Pure validation for definitions, mappings and catalog resource combinations."""
 
-from ._json import canonical, plain
+from ._json import canonical, plain, pointer
 from .errors import QueryError
-from .normalize import _normal_selector, _normalize, constrain_query, intersect_scopes
+from .normalize import (
+    _intersection,
+    _normal_selector,
+    _normalize,
+    constrain_query,
+    intersect_scopes,
+)
 
 
 def _error(path, message):
@@ -141,6 +147,78 @@ def validate_resource(data, kind):
         ) from exc
 
 
+def _mapping_conditions(row, definition, path):
+    fixed = {
+        key: value
+        for key, value in definition["fixed_conditions"].items()
+        if key != "statistics"
+    }
+    try:
+        return constrain_query(row["when"], fixed).to_dict()
+    except QueryError as exc:
+        raise QueryError(
+            "invalid_config", path + "/when", "mapping conflicts with parameter conditions"
+        ) from exc
+
+
+def _native_overlap(left, right):
+    for key in left.keys() & right.keys():
+        a, b = left[key], right[key]
+        if isinstance(b, dict):
+            a, b = b, a
+        kind = "number" if isinstance(a, dict) else "literal"
+        if kind == "number" and not isinstance(b, dict):
+            values = b if isinstance(b, list) else [b]
+            b = [value for value in values if type(value) in (int, float)]
+        if _intersection(a, b, kind) is None:
+            return False
+    return True
+
+
+def validate_standalone_grib2(parameters, mappings):
+    """Validate an independent GRIB2 mapping resource and return effective definitions."""
+    from .model import Mappings
+
+    effective = effective_parameters(parameters)
+    names = {}
+    for pid, definition in effective.items():
+        for name in (definition["name"], *definition.get("aliases", ())):
+            if names.setdefault(name, pid) != pid:
+                _error(
+                    pointer(("parameters", pid, "aliases")),
+                    f"ambiguous parameter name or alias {name!r}",
+                )
+
+    mappings = mappings if type(mappings) is Mappings else Mappings(mappings)
+    resource = mappings.to_dict()
+    if resource["backend"] != "grib2":
+        _error("/backend", "standalone mappings require the grib2 backend")
+    for index, table in enumerate(resource["tables"]):
+        if table["applies_to"]:
+            _error(
+                f"/tables/{index}/applies_to", "standalone tables require an empty scope"
+            )
+
+    applicable = []
+    for index, row in enumerate(resource["mappings"]):
+        pid = row["parameter_id"]
+        path = f"/mappings/{index}"
+        if pid not in effective:
+            _error(path + "/parameter_id", "unknown mapped parameter ID")
+        if row["applies_to"]:
+            _error(path + "/applies_to", "standalone mappings require an empty scope")
+        bound = _mapping_conditions(row, effective[pid], path)
+        native = row["native"]["match"]
+        for other_id, other_native, other_bound in applicable:
+            if (
+                _native_overlap(native, other_native)
+                and intersect_scopes(bound, other_bound) is not None
+            ):
+                _error(path + "/native/match", f"overlapping standalone mapping {other_id!r}")
+        applicable.append((row["id"], native, bound))
+    return effective
+
+
 def validate_resource_set(parameters, mappings, catalog, dataset_id):
     """Validate the selected dataset's resource references and return effective definitions."""
     from .model import Catalog, Mappings
@@ -196,19 +274,7 @@ def validate_resource_set(parameters, mappings, catalog, dataset_id):
                     path + "/applies_to",
                     "mapping refers to an unavailable product or version",
                 )
-            fixed = {
-                k: v
-                for k, v in effective[pid]["fixed_conditions"].items()
-                if k != "statistics"
-            }
-            try:
-                bound = constrain_query(row["when"], fixed).to_dict()
-            except QueryError as exc:
-                raise QueryError(
-                    "invalid_config",
-                    path + "/when",
-                    "mapping conflicts with parameter conditions",
-                ) from exc
+            bound = _mapping_conditions(row, effective[pid], path)
             backend = resource["backend"]
             native = canonical(row["native"]["match"])
             time_scope = {"time": applies["time"]} if "time" in applies else {}
